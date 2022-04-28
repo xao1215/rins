@@ -30,7 +30,7 @@ ros::Publisher pubm;
 
 tf2_ros::Buffer tf2_buffer;
 
-typedef pcl::PointXYZ PointT;
+typedef pcl::PointXYZRGB PointT;
 
 visualization_msgs::MarkerArray marker_array;
 
@@ -146,7 +146,7 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 	pcl::PointCloud<PointT>::Ptr cloud_cylinder(new pcl::PointCloud<PointT>());
 	extract.filter(*cloud_cylinder);
 
-	if( cloud_cylinder->points.empty() || cloud_cylinder->points.size() < 275 )
+	if( cloud_cylinder->points.empty() || cloud_cylinder->points.size() < 350 )
 		std::cerr << "NO CYLINDER" << std::endl;
 	else
 	{
@@ -206,13 +206,40 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 		marker.type = visualization_msgs::Marker::CYLINDER;
 		marker.action = visualization_msgs::Marker::ADD;
 
+		float r = 0, g = 0, b = 0;
+    int cloud_sajz = cloud_cylinder->points.size();
+    for(int nIndex = 0; nIndex < cloud_sajz; nIndex++){
+			uint32_t nig = *reinterpret_cast<uint32_t*>( &cloud_cylinder->points[nIndex].rgb );
+			r += (nig & 16711680) >> 16;
+			g += (nig & 65280) >> 8;
+			b += (nig & 255);			
+    }
+    // std::cerr << r << " " << g << " " << b << " " << g/(cloud_sajz * 255.1f) << std::endl;      
+    r = (r / (cloud_sajz * 255.0f));
+    g =  (g / (cloud_sajz * 255.0f));
+    b =  (b / (cloud_sajz * 255.0f));
+    // if( r == 0 && g == 0 && b == 0 ){return;}
+    // std::cerr << r << " " << g << " " << b << " " << (cloud_sajz * 255.1f) << std::endl;      
+    
+    // std::cerr << (float) (r / (cloud_sajz * 255.0)) << " " << (float) (g / (cloud_sajz * 255)) << " " << (float) (b / (cloud_sajz * 255)) << std::endl;
+    
+
 		for( int i = 0; i < marker_array.markers.size(); i++ ){
 			int x = marker_array.markers[i].pose.position.x - point_map.point.x;
 			int y = marker_array.markers[i].pose.position.y - point_map.point.y;
 			int dist = sqrt(x*x + y*y);
-			if( dist < 0.15 ){ return; }
+			if( dist < 0.15 ){ 		
+          std::cerr << "alredz there" << std::endl;
+
+        pcl::PCLPointCloud2 outcloud_cylinder;
+		    pcl::toPCLPointCloud2(*cloud_cylinder, outcloud_cylinder);
+		    puby.publish(outcloud_cylinder);
+        return;
+      }
 			// std::cerr << marker_array.markers[i].pose.position.x << " | " << marker_array.markers[i].pose.position.y << " | " << marker_array.markers[i].pose.position.z << " | " << std::endl;
 		}
+
+
 		marker.pose.position.x = point_map.point.x;
 		marker.pose.position.y = point_map.point.y;
 		marker.pose.position.z = point_map.point.z;
@@ -225,9 +252,14 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 		marker.scale.y = 0.1;
 		marker.scale.z = 0.1;
 
-		marker.color.r = 0.0f;
-		marker.color.g = 1.0f;
-		marker.color.b = 0.0f;
+		// marker.color.r = 0.0f;
+    
+		marker.color.r = r;
+		marker.color.g = g;
+		marker.color.b = b;
+		// marker.color.r = 0.94f;
+		// marker.color.g = 0.94f;
+		// marker.color.b = 0.25f;
 		marker.color.a = 1.0f;
 
 		marker.lifetime = ros::Duration();

@@ -146,8 +146,8 @@ class The_Ring:
         depth_image = depth_image/np.max(depth_image)*255
         depth_image = np.array(depth_image, dtype= np.uint8)
 
-        cv2.imshow("Depth window", depth_image)
-        cv2.waitKey(1)
+        # cv2.imshow("Depth window", depth_image)
+        # cv2.waitKey(1)
 
         try:
             # cv_image = rospy.wait_for_message('/camera/rgb/image_raw', Image)
@@ -166,9 +166,9 @@ class The_Ring:
         image_viz = np.array(image_1, dtype= np.uint8)
 
         contours, hierarchy = cv2.findContours(image_viz, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        cv2.drawContours(image_viz, contours, -1, (255, 0, 0), 3)
-        cv2.imshow("Contour window",image_viz)
-        cv2.waitKey(1)
+        # cv2.drawContours(image_viz, contours, -1, (255, 0, 0), 3)
+        # cv2.imshow("Contour window",image_viz)
+        # cv2.waitKey(1)
 
         # Fit elipses to all extracted contours
         elps = []
@@ -224,7 +224,6 @@ class The_Ring:
             cv2.ellipse(rgb, e2, (255, 255, 0), -1)
             cv2.ellipse(rgb, e1, (0, 0, 0), -1)
             where = np.where(rgb[:,:,0] == 255)
-            print(where)
             b = np.sum( orig_rgb[ where[0],where[1],0 ] ) / len(where[1]) / 255
             g = np.sum( orig_rgb[ where[0],where[1],1 ] ) / len(where[1]) / 255
             r = np.sum( orig_rgb[ where[0],where[1],2 ] ) / len(where[1]) / 255
@@ -238,9 +237,9 @@ class The_Ring:
                 self.get_pose( e1, distanc, [r,g,b] )
 
 
-        if len(candidates) > 0:
-            cv2.imshow("Image window",cv_image)
-            cv2.waitKey(1)
+        # if len(candidates) > 0:
+        #     cv2.imshow("Image window",cv_image)
+        #     cv2.waitKey(1)
 
 
 
