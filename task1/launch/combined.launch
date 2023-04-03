@@ -1,0 +1,14 @@
+<launch>
+
+
+  <include file="$(find task1)/launch/rins_world.launch"/>
+  <include file="$(find task1)/launch/amcl_simulation.launch"/>
+  
+  <!-- rviz -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find turtlebot_rviz_launchers)/rviz/navigation.rviz"/>
+
+  <!-- Map parameters config -->
+  <rosparam file="$(find task1)/config/params.yaml"/>
+
+
+</launch>
