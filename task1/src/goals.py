@@ -51,32 +51,41 @@ def update_goal(face_pose, tf2_buffer):
     # goal.target_pose.pose.position.x = msg.target_pose.pose.position.x
     # goal.target_pose.pose.position.y = msg.target_pose.pose.position.y
 
-    moment_in_past = rospy.Time.now() - rospy.Duration(nsecs=700000000)			
-    trans = tf2_buffer.lookup_transform('map', 'base_link', moment_in_past, rospy.Duration(1.))
+    # moment_in_past = rospy.Time.now() - rospy.Duration(nsecs=700000000)			
+    # trans = tf2_buffer.lookup_transform('map', 'base_link', moment_in_past, rospy.Duration(1.))
     
     
-    try:
-        odometry = rospy.wait_for_message("/odom", Odometry)
-    except Exception as e:
-        print(e)
+    # try:
+    #     odometry = rospy.wait_for_message("/odom", Odometry)
+    # except Exception as e:
+    #     print(e)
         
-    distance_to_face= 0
-    # vector_x = odometry.pose.pose.position.x - face_pose.position.x
-    # vector_y = odometry.pose.pose.position.y - face_pose.position.y
-    vector_x = trans.transform.translation.x - face_pose.position.x
-    vector_y = trans.transform.translation.y - face_pose.position.y
-    d = math.hypot(vector_x,vector_y)
+    # distance_to_face= 0
+    # # vector_x = odometry.pose.pose.position.x - face_pose.position.x
+    # # vector_y = odometry.pose.pose.position.y - face_pose.position.y
+    # vector_x = trans.transform.translation.x - face_pose.position.x
+    # vector_y = trans.transform.translation.y - face_pose.position.y
+    # d = math.hypot(vector_x,vector_y)
 
-    if d > distance_to_face:
-        newd = distance_to_face - d
-        ratio=newd/d
-        goal.target_pose.pose.position.x = trans.transform.translation.x + (vector_x * ratio)
-        goal.target_pose.pose.position.y = trans.transform.translation.y + (vector_y * ratio)
-    else:
-        goal.target_pose.pose.position.x = trans.transform.translation.x
-        goal.target_pose.pose.position.y = trans.transform.translation.y
+    # if d > distance_to_face:
+    #     newd = distance_to_face - d
+    #     ratio=newd/d
+    #     goal.target_pose.pose.position.x = trans.transform.translation.x + (vector_x * ratio)
+    #     goal.target_pose.pose.position.y = trans.transform.translation.y + (vector_y * ratio)
+    # else:
+    #     goal.target_pose.pose.position.x = trans.transform.translation.x
+    #     goal.target_pose.pose.position.y = trans.transform.translation.y
 
-    # goal.target_pose.pose.position.z = face_pose.position.z
+    print(face_pose.orientation.w,face_pose.orientation.z)
+
+    goal.target_pose.pose.position.x = face_pose.position.x
+    goal.target_pose.pose.position.y = face_pose.position.y
+    goal.target_pose.pose.orientation.x = face_pose.orientation.x
+    goal.target_pose.pose.orientation.y = face_pose.orientation.y
+    goal.target_pose.pose.orientation.z = 0.707 # face_pose.orientation.z
+    goal.target_pose.pose.orientation.w = -0.707 #face_pose.orientation.w
+    print(goal)
+
     face_detected = True
     goal_sent = False
 
@@ -119,9 +128,12 @@ def start_service():
     # except Exception as e:
     #     print(e)
 
-    q = quaternion_from_euler(0, 0, 0.1)
+    q = quaternion_from_euler(0, 0, 1.57)
     
-    goals = [ i for i in range(8) ]
+    xs = [ 0.066, 1.7, 2.87, 2.05, 1.5, -0.6, -1 ]
+    ys = [ 0.955, -1.2, -0.52, 2.5, 0.7, 0.2, 1.9 ]
+    goals = [ i for i in range( len(xs) ) ]
+
     for i in range( len(goals) ):
         goals[i] = MoveBaseGoal()
         goals[i].target_pose.header.frame_id = "map";
@@ -130,37 +142,36 @@ def start_service():
         goals[i].target_pose.pose.orientation.y = q[1]
         goals[i].target_pose.pose.orientation.z = q[2]
         goals[i].target_pose.pose.orientation.w = q[3]
+        goals[i].target_pose.pose.position.x = xs[i]
+        goals[i].target_pose.pose.position.y = ys[i]
 
 
-    goals[0].target_pose.pose.position.x = -0.466306
-    goals[0].target_pose.pose.position.y = 0.855869;
-    goals[1].target_pose.pose.position.x = 2.8784
-    goals[1].target_pose.pose.position.y = -0.521742
-    goals[2].target_pose.pose.position.x = 1.6955
-    goals[2].target_pose.pose.position.y = -0.89701;
-    goals[3].target_pose.pose.position.x = -0.88362;
-    goals[3].target_pose.pose.position.y = 1.8937;
-    goals[4].target_pose.pose.position.x = 1.05;
-    goals[4].target_pose.pose.position.y = 1.15;
-    goals[5].target_pose.pose.position.x = 2.7;
-    goals[5].target_pose.pose.position.y = 1.3;
-    goals[6].target_pose.pose.position.x = -1.65;
-    goals[6].target_pose.pose.position.y = -0.45;
-    goals[7].target_pose.pose.position.x = 1.25;
-    goals[7].target_pose.pose.position.y = -0.65;
+
+    # goals[0].target_pose.pose.position.x = 0.066306
+    # goals[0].target_pose.pose.position.y = 0.955869
+    # goals[1].target_pose.pose.position.x = 2.8784
+    # goals[1].target_pose.pose.position.y = -0.521742
+    # goals[2].target_pose.pose.position.x = 2.05
+    # goals[2].target_pose.pose.position.y = 2.5;
+    # goals[3].target_pose.pose.position.x = 1.5;
+    # goals[3].target_pose.pose.position.y = 0.7;
+    # goals[4].target_pose.pose.position.x = -0.6;
+    # goals[4].target_pose.pose.position.y = 0.2;
+    # goals[5].target_pose.pose.position.x = -1;
+    # goals[5].target_pose.pose.position.y = 1.9;
     
 
     client.send_goal(goals[0])
     which = 0
     rotation = 0
-    r = rospy.Rate(3)
+    r = rospy.Rate(1.5)
 
     while not rospy.is_shutdown():
 
         print(num)
         id = id + 1
 
-        if num == 6:
+        if num == 3:
             print("FOUND ALL")
             break
 
@@ -168,10 +179,10 @@ def start_service():
             client.cancel_goal()
             goal.target_pose.header.frame_id = "map"
             goal.target_pose.header.stamp = rospy.Time.now()
-            goal.target_pose.pose.orientation.w = 1
-            goal.target_pose.pose.orientation.x = 0
-            goal.target_pose.pose.orientation.y = 0
-            goal.target_pose.pose.orientation.z = 0
+            # goal.target_pose.pose.orientation.w = 1
+            # goal.target_pose.pose.orientation.x = 0
+            # goal.target_pose.pose.orientation.y = 0
+            # goal.target_pose.pose.orientation.z = 0
 
             pose = Pose()
             pose.position.x = goal.target_pose.pose.position.x
@@ -225,24 +236,25 @@ def start_service():
                 print("FACE DETECTION GOAL REACHED")
                 rotation = 0
                 which += 1
+                rospy.sleep(2)
                 client.send_goal(goals[which])
                 face_detected = False
                 goal_sent = False
-                # rospy.sleep(2)
             else:
                 if rotation == 2:
                     print("ROTATIONS DONE")
                     if which == len(goals)-1:
-                        break
+                        which = 0
+                        continue
                     which += 1
                     rotation = 0
                     client.send_goal(goals[which])
                 else:
                     print("GOAL REACHED")
-                    rotation_goal = generate_goal(rotation, goals[which].target_pose.pose.position.x, goals[which].target_pose.pose.position.y )
-                    client.send_goal( rotation_goal )
-                    rotation += 1
-                    
+                    # rotation_goal = generate_goal(rotation, goals[which].target_pose.pose.position.x, goals[which].target_pose.pose.position.y )
+                    # client.send_goal( rotation_goal )
+                    # rotation += 1
+                    rotation = 2                    
 
         elif state == 2 or state == 8 or state == 4 or state == 9:
             if face_detected:
@@ -253,7 +265,8 @@ def start_service():
             else:
                 print("GOAL N {} FAILED".format(which+1));
                 if which == len(goals)-1:
-                    break
+                    which = 0
+                    continue
                 which += 1
                 client.send_goal(goals[which])
     

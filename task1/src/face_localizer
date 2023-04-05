@@ -18,6 +18,7 @@ from nav_msgs.msg import Odometry
 from sound_play.msg import SoundRequest
 from sound_play.libsoundplay import SoundClient
 from os.path import dirname, join
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 import random
 
 
@@ -79,14 +80,14 @@ class face_localizer:
         k_f = 554 # kinect focal length in pixels
 
         x1, x2, y1, y2 = coords
-        dl,dr = depth_arr
 
         face_x = self.dims[1] / 2 - (x1+x2)/2.
         face_y = self.dims[0] / 2 - (y1+y2)/2.
 
+
+        dl,dr = depth_arr
         l =  self.dims[1] / 2 - x1
         r =  self.dims[1] / 2 - x2
-        print(self.dims[1], x1,x2,y1,y2)
         a_l = np.arctan2(l,k_f)
         a_r = np.arctan2(r,k_f)
 
@@ -146,36 +147,34 @@ class face_localizer:
             robot = self.tf_buf.transform(robot, "map")
 
 
+            # if pl.point.x - pr.point.x <
+            k = np.array([ ( pl.point.y - pr.point.y ) , - ( pl.point.x - pr.point.x ) ])
+            k /= np.linalg.norm(np.array([ ( pl.point.y - pr.point.y ) , - ( pl.point.x - pr.point.x ) ]))
+            k *= 0.35
+
+
+            ang = np.arctan2( k[1] , k[0] ) * 180 / np.pi - 180
+            ang = np.arctan2( k[1] , k[0] ) - np.pi/2
+
+            print(k, ang )
+
+            # print(ang)
+
+
+
             # Create a Pose object with the same position
             pose = Pose()
-            pose.position.x = point_world.point.x
-            pose.position.y = point_world.point.y
+            pose.position.x = point_world.point.x - k[0]
+            pose.position.y = point_world.point.y - k[1]
             pose.position.z = point_world.point.z
 
-            # if self.temp:
-            #     pose = Pose()
-            #     pose.position.x = pl.point.x
-            #     pose.position.y = pl.point.y
-            #     pose.position.z = pl.point.z
-            # else:
-            #     pose = Pose()
-            #     pose.position.x = pr.point.x
-            #     pose.position.y = pr.point.y
-            #     pose.position.z = pr.point.z
+            x,y,z,w = quaternion_from_euler(0,0,ang)
+            print(x,y,z,w)
 
-            self.temp = not self.temp
-
-            if abs( pr.point.x - pl.point.x ) > abs( pr.point.y - pl.point.y ):
-                if robot.point.y > point_world.point.y:
-                    pose.position.y += 0.35
-                else:
-                    pose.position.y -= 0.35
-            else:
-                if robot.point.x > point_world.point.x:
-                    pose.position.x += 0.35
-                else:
-                    pose.position.x -= 0.35
-
+            pose.orientation.x = x
+            pose.orientation.y = y
+            pose.orientation.z = z
+            pose.orientation.w = w
 
         except Exception as e:
             print(e)
@@ -249,7 +248,7 @@ class face_localizer:
                 face_distance = float(np.nanmean(depth_image[y1:y2,x1:x2]))
                 depth_arr = [  float(np.nanmean(depth_image[y1:y2,x1 if x1 >= 0 else 0])), float(np.nanmean(depth_image[y1:y2,x2 if x2 < self.dims[1] else self.dims[1] - 1])) ]
                 print('Distance to face', face_distance)
-                if face_distance > 1.8:
+                if face_distance > 1.8 or np.isnan(face_distance):
                     return
 
                 # Get the time that the depth image was recieved
@@ -280,10 +279,13 @@ class face_localizer:
                             self.markers_pub.publish(self.marker_array)
 
                             self.existing_face = True
+                        else:
+                            print("new\ndistance:", math.sqrt( (face.position.x - pose.position.x)**2 +  (face.position.y - pose.position.y)**2 ) )
 
 
                     if not self.existing_face:
                         if self.marker_counter == 0:
+                            print("publishing new face")
                             self.position_pub.publish(pose)
                         self.marker_counter += 1
 
@@ -342,7 +344,8 @@ def main():
 
         face_finder = face_localizer()
 
-        rate = rospy.Rate(1)
+        rate = rospy.Rate(1.5)
+        rospy.sleep(5.)
         while not rospy.is_shutdown():
             face_finder.publish_num()
             face_finder.find_faces()
