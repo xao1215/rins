@@ -47,19 +47,50 @@ class The_Ring:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buf)
 
 
-    def get_pose(self,e,dist,color):
-        # Calculate the position of the detected ellipse
+    def get_pose(self,ee,distt,color, left):
+        # Calculate the posit  ion of the detected ellipse
+        e,y_min,y_max = ee 
+        dist,dl,dr = distt
 
         k_f = 525 # kinect focal length in pixels
         elipse_x = self.dims[1] / 2 - e[0][0]
         elipse_y = self.dims[0] / 2 - e[0][1]
         angle_to_target = np.arctan2(elipse_x,k_f)
 
+
+        elipse_l = self.dims[1] / 2 - y_max
+        elipse_r = self.dims[1] / 2 - y_min
+        # print(elipse_x,elipse_l,elipse_r)
+
+
+        al = np.arctan2(elipse_l,k_f)
+        ar = np.arctan2(elipse_r,k_f)
+        # print(angle_to_target,al,ar)
+
+        xl,yl = dl*np.cos(al), dl*np.sin(al)
+        xr,yr = dr*np.cos(ar), dr*np.sin(ar)
+        # print(dist,dl,dr)
+
+
         # Get the angles in the base_link relative coordinate system
         x,y = dist*np.cos(angle_to_target), dist*np.sin(angle_to_target)
 
         ### Define a stamped message for transformation - directly in "base_frame"
-        point_s = PointStamped()
+        pl = PointStamped()
+        pl.point.x = -yl #-y
+        pl.point.y = 0
+        pl.point.z = xl #x
+        pl.header.frame_id = "camera_rgb_optical_frame"
+        pl.header.stamp = rospy.Time(0)
+
+
+        pr = PointStamped()
+        pr.point.x = -yr #-y
+        pr.point.y = 0
+        pr.point.z = xr #x
+        pr.header.frame_id = "camera_rgb_optical_frame"
+        pr.header.stamp = rospy.Time(0)
+
         # point_s.point.x = x
         # point_s.point.y = y
         # point_s.point.z = 0.3
@@ -77,9 +108,31 @@ class The_Ring:
         # Get the point in the "map" coordinate system
         try:
             point_world = self.tf_buf.transform(point_s, "map")
+            pwl = self.tf_buf.transform(pl, "map")
+            pwr = self.tf_buf.transform(pr, "map")
+
         except Exception as e:
             print(e)
             return 
+
+
+        posel = Pose()
+        posel.position.x = pwl.point.x
+        posel.position.y = pwl.point.y
+        posel.position.z = pwl.point.z
+        posel.orientation.x = 0.0
+        posel.orientation.y = 0.0
+        posel.orientation.z = 0.0
+        posel.orientation.w = 1.0
+        poser = Pose()
+        poser.position.x = pwr.point.x
+        poser.position.y = pwr.point.y
+        poser.position.z = pwr.point.z
+        poser.orientation.x = 0.0
+        poser.orientation.y = 0.0
+        poser.orientation.z = 0.0
+        poser.orientation.w = 1.0
+
 
         # Create a Pose object with the same position
         pose = Pose()
@@ -94,8 +147,21 @@ class The_Ring:
 
         w = 1.5
 
+
+
         # for i in range(len(self.averages)):
             # print(self.averages[i])
+
+        print(np.abs(posel.position.x - poser.position.x))
+        print(np.abs(posel.position.y - poser.position.y))
+        if np.isnan(posel.position.x) or np.isnan(poser.position.x):
+            return
+
+        if np.abs(posel.position.x - poser.position.x) > np.abs(posel.position.y - poser.position.y):
+            print("X")
+        else:
+            print("Y") 
+
         
         for i in range(len(self.marker_array.markers)):
             mrkr = self.marker_array.markers[i]
@@ -110,19 +176,34 @@ class The_Ring:
                 self.markers_pub.publish(self.marker_array)
                 return
 
+
         # Create a marker used for visualization
         self.marker_num += 1
         marker = Marker()
         marker.header.stamp = point_world.header.stamp
         marker.header.frame_id = point_world.header.frame_id
-        marker.pose = pose
+        marker.pose = posel
         marker.type = Marker.CUBE
         marker.action = Marker.ADD
         marker.frame_locked = False
-        marker.lifetime = rospy.Duration.from_sec(10000)
+        marker.lifetime = rospy.Duration.from_sec(10)
         marker.id = self.marker_num
         marker.scale = Vector3(0.1, 0.1, 0.1)
         marker.color = ColorRGBA(color[0], color[1], color[2], 1)
+        # g = np.random.randint(0,100)
+        # if g % 3 == 0:
+        #     marker.pose = poser
+        #     marker.color = ColorRGBA(0,0,1, 1)
+        # elif g % 3 == 1:
+        #     marker.pose = posel
+        #     marker.color = ColorRGBA(0,1,0, 1)
+        # else:
+        #     marker.pose = pose
+        #     marker.color = ColorRGBA(1,0,0, 1)
+
+
+
+
         self.marker_array.markers.append(marker)
         self.averages.append(1)
 
@@ -146,8 +227,9 @@ class The_Ring:
         depth_image = depth_image/np.max(depth_image)*255
         depth_image = np.array(depth_image, dtype= np.uint8)
 
-        # cv2.imshow("Depth window", depth_image)
-        # cv2.waitKey(1)
+        # SHOW DEPTH IMG
+        cv2.imshow("Depth window", depth_image)
+        cv2.waitKey(1)
 
         try:
             # cv_image = rospy.wait_for_message('/camera/rgb/image_raw', Image)
@@ -229,12 +311,33 @@ class The_Ring:
             r = np.sum( orig_rgb[ where[0],where[1],2 ] ) / len(where[1]) / 255
 
             # d_image = self.bridge.imgmsg_to_cv2(depth_image, "16UC1")
-            cv2.imshow("Ring {}".format(i), orig_rgb[x_min:x_max,y_min:y_max])
+            cv2.imshow("Ring {}".format(i), depth_image[x_min:x_max,y_min:y_max])
             cv2.waitKey(1)
 
+            h = int(x_min/2 + x_max/2)
+            w = int(y_min/2 + y_max/2)
+            ld = depth_image[:,w-50:w]
+            rd = depth_image[:,w:w+50]
+
+            ld[ld == 0] = 255
+            rd[rd == 0] = 255
+            # for x in range(len(ld)):
+            #     for y in range(len(ld[x])):
+            #         if ld[x,y] == 0:
+            #             ld[x,y] = 255
+            #         if rd[x,y] == 0:
+            #             rd[x,y] = 255
+            print( np.sum( ld ), np.sum( rd ) ) 
+            left = True if np.sum( ld ) < np.sum( rd ) else False
+
+            ring = orig_depth[x_min:x_max,y_min:y_max]
             distanc = float(np.nanmean(orig_depth[x_min:x_max,y_min:y_max]))
-            if distanc < 2:
-                self.get_pose( e1, distanc, [r,g,b] )
+            dl = float(np.nanmean(ring[ int(len(ring)/2)-2:int(len(ring)/2)+2, 0:2]))
+            dr = float(np.nanmean(ring[ int(len(ring)/2)-2:int(len(ring)/2)+2, len(ring)-2:len(ring) ]))
+
+            distanc = float(np.nanmean(orig_depth[x_min:x_max,y_min:y_max]))
+            if distanc < 1.5:
+                self.get_pose( [e1,y_min,y_max], [distanc,dl,dr], [r,g,b], left )
 
 
         # if len(candidates) > 0:
@@ -438,6 +541,7 @@ class The_Ring:
 def main():
 
     ring_finder = The_Ring()
+    # rate = rospy.Rate(2)
 
     try:
         rospy.spin()
