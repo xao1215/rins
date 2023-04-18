@@ -82,16 +82,15 @@ def update_goal(face_pose, tf2_buffer):
     goal.target_pose.pose.position.y = face_pose.position.y
     goal.target_pose.pose.orientation.x = face_pose.orientation.x
     goal.target_pose.pose.orientation.y = face_pose.orientation.y
-    goal.target_pose.pose.orientation.z = 0.707 # face_pose.orientation.z
-    goal.target_pose.pose.orientation.w = -0.707 #face_pose.orientation.w
-    print(goal)
+    goal.target_pose.pose.orientation.z = face_pose.orientation.z
+    goal.target_pose.pose.orientation.w = face_pose.orientation.w
 
     face_detected = True
     goal_sent = False
 
 def get_num(msg):
     global num
-    num = msg.data
+    # num = msg.data
 
 def start_service():
     global goal,face_detected,goal_sent,num
@@ -128,7 +127,7 @@ def start_service():
     # except Exception as e:
     #     print(e)
 
-    q = quaternion_from_euler(0, 0, 1.57)
+    q = quaternion_from_euler(0, 0, 0)
     
     xs = [ 0.066, 1.7, 2.87, 2.05, 1.5, -0.6, -1 ]
     ys = [ 0.955, -1.2, -0.52, 2.5, 0.7, 0.2, 1.9 ]
@@ -171,9 +170,7 @@ def start_service():
         print(num)
         id = id + 1
 
-        if num == 3:
-            print("FOUND ALL")
-            break
+
 
         if face_detected and not goal_sent:
             client.cancel_goal()
@@ -234,9 +231,14 @@ def start_service():
             if face_detected:
                 soundhandle.say("GREETINGS", voice, volume)
                 print("FACE DETECTION GOAL REACHED")
+                # global num
+                num += 1
                 rotation = 0
                 which += 1
                 rospy.sleep(2)
+                if num == 3:
+                    print("FOUND ALL")
+                    break
                 client.send_goal(goals[which])
                 face_detected = False
                 goal_sent = False
@@ -270,7 +272,9 @@ def start_service():
                 which += 1
                 client.send_goal(goals[which])
     
-
+        if num == 3:
+            print("FOUND ALL")
+            break
 
         r.sleep()
 

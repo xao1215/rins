@@ -154,7 +154,7 @@ class face_localizer:
 
 
             ang = np.arctan2( k[1] , k[0] ) * 180 / np.pi - 180
-            ang = np.arctan2( k[1] , k[0] ) - np.pi/2
+            ang = np.arctan2( k[1] , k[0] ) 
 
             print(k, ang )
 
