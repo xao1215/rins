@@ -7,7 +7,7 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from visualization_msgs.msg import Marker, MarkerArray
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose,Vector3
-from std_msgs.msg import ColorRGBA, Int64
+from std_msgs.msg import ColorRGBA, Int64, String
 from sound_play.msg import SoundRequest
 from sound_play.libsoundplay import SoundClient
 import tf2_ros
@@ -18,6 +18,8 @@ goal = None
 face_deteced = None
 goal_sent = None
 num = None
+ring_num = 0
+green_pos = None
 
 
 def generate_goal(rotation, x, y):
@@ -92,8 +94,16 @@ def get_num(msg):
     global num
     # num = msg.data
 
+def get_green_pos(msg):
+    global green_pos
+    green_pos = msg.markers[0].pose
+
+def get_ring_num(msg):
+    global ring_num
+    ring_num  =  len(msg.markers)
+
 def start_service():
-    global goal,face_detected,goal_sent,num
+    global goal,face_detected,goal_sent,num,ring_num,green_pos
     face_detected = False
     goal_sent = False
     num = 0
@@ -108,15 +118,15 @@ def start_service():
     # odometry_subscriber = rospy.Subscriber ('/odom', Odometry, get_rotation)
     goal_subscriber = rospy.Subscriber('/face_position', Pose, update_goal, callback_args=tf2_buffer)
     face_num = rospy.Subscriber('/face_num', Int64, get_num)
-
+    green_pos_sub = rospy.Subscriber('/green_pos', MarkerArray, get_green_pos)
+    ring_num = rospy.Subscriber('/detected_rings', MarkerArray, get_ring_num)
+    arm_pub = rospy.Publisher("/arm_command", String, queue_size=100)
     soundhandle = SoundClient()
     rospy.sleep(1)
     voice = 'voice_kal_diphone'
     volume = 1.0
-    
     markers_pub = rospy.Publisher('/face_markers', MarkerArray, queue_size=1000)
     marker_array = MarkerArray()
-
     nc = rospy.Subscriber('face_num', Int64, get_num, queue_size=1000)
 
 
@@ -128,11 +138,9 @@ def start_service():
     #     print(e)
 
     q = quaternion_from_euler(0, 0, 0)
-    
     xs = [ 0.066, 1.7, 2.87, 2.05, 1.5, -0.6, -1 ]
     ys = [ 0.955, -1.2, -0.52, 2.5, 0.7, 0.2, 1.9 ]
     goals = [ i for i in range( len(xs) ) ]
-
     for i in range( len(goals) ):
         goals[i] = MoveBaseGoal()
         goals[i].target_pose.header.frame_id = "map";
@@ -146,29 +154,52 @@ def start_service():
 
 
 
-    # goals[0].target_pose.pose.position.x = 0.066306
-    # goals[0].target_pose.pose.position.y = 0.955869
-    # goals[1].target_pose.pose.position.x = 2.8784
-    # goals[1].target_pose.pose.position.y = -0.521742
-    # goals[2].target_pose.pose.position.x = 2.05
-    # goals[2].target_pose.pose.position.y = 2.5;
-    # goals[3].target_pose.pose.position.x = 1.5;
-    # goals[3].target_pose.pose.position.y = 0.7;
-    # goals[4].target_pose.pose.position.x = -0.6;
-    # goals[4].target_pose.pose.position.y = 0.2;
-    # goals[5].target_pose.pose.position.x = -1;
-    # goals[5].target_pose.pose.position.y = 1.9;
-    
-
     client.send_goal(goals[0])
     which = 0
     rotation = 0
-    r = rospy.Rate(1.5)
+    r = rospy.Rate(2)
+    green_sent = False
+    park = False
+    arm_pub.publish( 'retract' )
+    goto_green = False
+
 
     while not rospy.is_shutdown():
-
-        print(num)
+        
         id = id + 1
+
+        state = client.get_state()
+        print(client.get_goal_status_text())
+
+
+        if ring_num == 1:
+            goto_green = True
+
+
+        if goto_green and not green_sent:
+            goal = MoveBaseGoal()
+            goal.target_pose.header.frame_id = "map"
+            goal.target_pose.header.stamp = rospy.Time.now()
+            goal.target_pose.pose.position.x = green_pos.position.x
+            goal.target_pose.pose.position.y = green_pos.position.y
+            goal.target_pose.pose.orientation.x = green_pos.orientation.x
+            goal.target_pose.pose.orientation.y = green_pos.orientation.y
+            goal.target_pose.pose.orientation.z = green_pos.orientation.z
+            goal.target_pose.pose.orientation.w = green_pos.orientation.w
+            client.send_goal(goal)
+            green_sent = True
+        if goto_green and green_sent and not park:
+            if state == 3:
+                park = True
+                arm_pub.publish( 'extend' )
+            else:
+                r.sleep()
+                continue
+        if park:
+            r.sleep()
+            print("parking phase")
+            continue
+
 
 
 
@@ -176,11 +207,6 @@ def start_service():
             client.cancel_goal()
             goal.target_pose.header.frame_id = "map"
             goal.target_pose.header.stamp = rospy.Time.now()
-            # goal.target_pose.pose.orientation.w = 1
-            # goal.target_pose.pose.orientation.x = 0
-            # goal.target_pose.pose.orientation.y = 0
-            # goal.target_pose.pose.orientation.z = 0
-
             pose = Pose()
             pose.position.x = goal.target_pose.pose.position.x
             pose.position.y = goal.target_pose.pose.position.y
@@ -223,8 +249,7 @@ def start_service():
             client.send_goal(goal)
             goal_sent = True
 
-        state = client.get_state()
-        print(client.get_goal_status_text())
+     
 
 
         if state == 3:
@@ -272,10 +297,6 @@ def start_service():
                 which += 1
                 client.send_goal(goals[which])
     
-        if num == 3:
-            print("FOUND ALL")
-            break
-
         r.sleep()
 
 

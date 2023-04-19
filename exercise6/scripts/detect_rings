@@ -13,6 +13,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 import math
+from tf.transformations import quaternion_from_euler
 
 
 class The_Ring:
@@ -27,6 +28,8 @@ class The_Ring:
 
         # Marker array object used for visualizations
         self.marker_array = MarkerArray()
+        self.green_array = MarkerArray()
+
         self.marker_num = 1
 
         self.new_depth_sub = Subscriber("/camera/depth/image_raw", Image)
@@ -40,6 +43,8 @@ class The_Ring:
 
         # Publiser for the visualization markers
         self.markers_pub = rospy.Publisher('/detected_rings', MarkerArray, queue_size=1000)
+        self.green_pub = rospy.Publisher('/green_pos', MarkerArray, queue_size=1000)
+
         self.averages = []
 
         # Object we use for transforming between coordinate frames
@@ -56,6 +61,8 @@ class The_Ring:
         elipse_x = self.dims[1] / 2 - e[0][0]
         elipse_y = self.dims[0] / 2 - e[0][1]
         angle_to_target = np.arctan2(elipse_x,k_f)
+
+        # print(ee,distt)
 
 
         elipse_l = self.dims[1] / 2 - y_max
@@ -149,11 +156,9 @@ class The_Ring:
 
 
 
-        # for i in range(len(self.averages)):
-            # print(self.averages[i])
 
-        print(np.abs(posel.position.x - poser.position.x))
-        print(np.abs(posel.position.y - poser.position.y))
+        # print(np.abs(posel.position.x - poser.position.x))
+        # print(np.abs(posel.position.y - poser.position.y))
         if np.isnan(posel.position.x) or np.isnan(poser.position.x):
             return
 
@@ -162,31 +167,58 @@ class The_Ring:
         else:
             print("Y") 
 
+        k = np.array([ ( pwl.point.x - pwr.point.x ), ( pwl.point.y - pwr.point.y )   ]) 
+        k /= np.linalg.norm(np.array([  ( pwl.point.x - pwr.point.x ), ( pwl.point.y - pwr.point.y )  ]))
+        k *= 0.6 * left
+        # print(k)
+
+        ang = np.arctan2( k[1] , k[0] ) * 180 / np.pi - 180
+        ang = np.arctan2( k[1] , k[0] ) 
+
+        # Create a Pose object with the same position
+        p = Pose()
+        p.position.x = pose.position.x - k[0]
+        p.position.y = pose.position.y - k[1]
+        p.position.z = pose.position.z
+
+        x,y,z,w = quaternion_from_euler(0,0,ang)
+        # print(x,y,z,w)
+
+        p.orientation.x = x
+        p.orientation.y = y
+        p.orientation.z = z
+        p.orientation.w = w
         
         for i in range(len(self.marker_array.markers)):
-            mrkr = self.marker_array.markers[i]
-            x = mrkr.pose.position.x - point_world.point.x
-            y = mrkr.pose.position.y - point_world.point.y
-            d = math.sqrt(x*x + y*y)
 
+            mrkr = self.marker_array.markers[i]
+            x = pose.position.x
+            y = pose.position.y
+            d = math.sqrt( ( x- mrkr.pose.position.x )**2 + ( y - mrkr.pose.position.y)**2 )
+            # print(d)
             if d < 0.5 or math.isnan(d):
                 self.averages[i] += 1
-                self.marker_array.markers[i].pose.position.x += (point_world.point.x - self.marker_array.markers[i].pose.position.x) / self.averages[i] * w
-                self.marker_array.markers[i].pose.position.y += (point_world.point.y - self.marker_array.markers[i].pose.position.y) / self.averages[i] * w
+                self.marker_array.markers[i].pose.position.x += (x - self.marker_array.markers[i].pose.position.x) / self.averages[i] * w
+                self.marker_array.markers[i].pose.position.y += (y - self.marker_array.markers[i].pose.position.y) / self.averages[i] * w
                 self.markers_pub.publish(self.marker_array)
+
+                # if color[1] > 0.85:
+                #     self.green_array.markers[0].pose.position.x = self.marker_array.markers[i].pose.position.x
+                #     self.green_array.markers[0].pose.position.y = self.marker_array.markers[i].pose.position.y
+                #     self.green_pub.publish(self.green_array)
                 return
 
-
+        print("create")
         # Create a marker used for visualization
         self.marker_num += 1
         marker = Marker()
         marker.header.stamp = point_world.header.stamp
         marker.header.frame_id = point_world.header.frame_id
-        marker.pose = posel
+        marker.pose = pose
         marker.type = Marker.CUBE
         marker.action = Marker.ADD
         marker.frame_locked = False
-        marker.lifetime = rospy.Duration.from_sec(10)
+        marker.lifetime = rospy.Duration.from_sec(1000)
         marker.id = self.marker_num
         marker.scale = Vector3(0.1, 0.1, 0.1)
         marker.color = ColorRGBA(color[0], color[1], color[2], 1)
@@ -198,16 +230,30 @@ class The_Ring:
         #     marker.pose = posel
         #     marker.color = ColorRGBA(0,1,0, 1)
         # else:
-        #     marker.pose = pose
+        #     marker.pose = p
         #     marker.color = ColorRGBA(1,0,0, 1)
-
-
-
 
         self.marker_array.markers.append(marker)
         self.averages.append(1)
-
         self.markers_pub.publish(self.marker_array)
+
+        if color[1] > 0.85 and color[2] < 0.35:
+            self.marker_num += 1
+            marker = Marker()
+            marker.header.stamp = point_world.header.stamp
+            marker.header.frame_id = point_world.header.frame_id
+            marker.pose = pose
+            marker.type = Marker.CUBE
+            marker.action = Marker.ADD
+            marker.frame_locked = False
+            marker.lifetime = rospy.Duration.from_sec(1000)
+            marker.id = self.marker_num
+            marker.scale = Vector3(0.1, 0.1, 0.1)
+            marker.color = ColorRGBA(color[0], color[1], color[2], 1)
+            marker.pose = p
+
+            self.green_array.markers.append( marker )
+            self.green_pub.publish(self.green_array)
 
 
 
@@ -328,15 +374,17 @@ class The_Ring:
             #         if rd[x,y] == 0:
             #             rd[x,y] = 255
             print( np.sum( ld ), np.sum( rd ) ) 
-            left = True if np.sum( ld ) < np.sum( rd ) else False
+            left = np.sum( ld ) - np.sum( rd ) 
+            left /= abs(left)
+            # left = True if np.sum( ld ) < np.sum( rd ) else False
 
             ring = orig_depth[x_min:x_max,y_min:y_max]
             distanc = float(np.nanmean(orig_depth[x_min:x_max,y_min:y_max]))
-            dl = float(np.nanmean(ring[ int(len(ring)/2)-2:int(len(ring)/2)+2, 0:2]))
-            dr = float(np.nanmean(ring[ int(len(ring)/2)-2:int(len(ring)/2)+2, len(ring)-2:len(ring) ]))
+            dl = float(np.nanmean(ring[ int(len(ring)/2)-5:int(len(ring)/2)+5, 0:int(len(ring)/2) ]))
+            dr = float(np.nanmean(ring[ int(len(ring)/2)-5:int(len(ring)/2)+5, int(len(ring)/2):len(ring) ]))
 
             distanc = float(np.nanmean(orig_depth[x_min:x_max,y_min:y_max]))
-            if distanc < 1.5:
+            if distanc < 2:
                 self.get_pose( [e1,y_min,y_max], [distanc,dl,dr], [r,g,b], left )
 
 

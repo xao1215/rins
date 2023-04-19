@@ -1,0 +1,345 @@
+#!/usr/bin/python3
+
+import sys
+import rospy
+import cv2
+import numpy as np
+import tf2_geometry_msgs
+import tf2_ros
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import PointStamped, Vector3, Pose
+from cv_bridge import CvBridge, CvBridgeError
+from visualization_msgs.msg import Marker, MarkerArray
+from std_msgs.msg import ColorRGBA
+from message_filters import ApproximateTimeSynchronizer, Subscriber
+import math
+from tf.transformations import quaternion_from_euler
+
+
+class The_Ring:
+    def __init__(self):
+        rospy.init_node('image_converter', anonymous=True)
+
+        # An object we use for converting images between ROS format and OpenCV format
+        self.bridge = CvBridge()
+
+        # A help variable for holding the dimensions of the image
+        self.dims = (0, 0, 0)
+
+        # Marker array object used for visualizations
+        self.marker_array = MarkerArray()
+        self.green_array = MarkerArray()
+
+        self.marker_num = 1
+
+        # self.new_depth_sub = Subscriber("/arm_camera/depth/image_raw", Image)
+        self.new_image_sub = Subscriber("/arm_camera/rgb/image_raw", Image)
+        # self.ats = ApproximateTimeSynchronizer([self.new_depth_sub, self.new_image_sub], queue_size=5, slop=0.1)
+        # self.ats.registerCallback(self.gotimage)
+
+        # Subscribe to the image and/or depth topic
+        self.image_sub = rospy.Subscriber("/arm_camera/rgb/image_raw", Image, self.image_callback)
+        # self.depth_sub = rospy.Subscriber("/camera/depth/image_raw", Image, self.depth_callback)
+
+        self.averages = []
+
+        # Object we use for transforming between coordinate frames
+        self.tf_buf = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buf)
+
+
+    def get_pose(self,ee,distt,color, left):
+        # Calculate the posit  ion of the detected ellipse
+        e,y_min,y_max = ee 
+        dist,dl,dr = distt
+
+        k_f = 525 # kinect focal length in pixels
+        elipse_x = self.dims[1] / 2 - e[0][0]
+        elipse_y = self.dims[0] / 2 - e[0][1]
+        angle_to_target = np.arctan2(elipse_x,k_f)
+
+        # print(ee,distt)
+
+
+        elipse_l = self.dims[1] / 2 - y_max
+        elipse_r = self.dims[1] / 2 - y_min
+        # print(elipse_x,elipse_l,elipse_r)
+
+
+        al = np.arctan2(elipse_l,k_f)
+        ar = np.arctan2(elipse_r,k_f)
+        # print(angle_to_target,al,ar)
+
+        xl,yl = dl*np.cos(al), dl*np.sin(al)
+        xr,yr = dr*np.cos(ar), dr*np.sin(ar)
+        # print(dist,dl,dr)
+
+
+        # Get the angles in the base_link relative coordinate system
+        x,y = dist*np.cos(angle_to_target), dist*np.sin(angle_to_target)
+
+        ### Define a stamped message for transformation - directly in "base_frame"
+        pl = PointStamped()
+        pl.point.x = -yl #-y
+        pl.point.y = 0
+        pl.point.z = xl #x
+        pl.header.frame_id = "camera_rgb_optical_frame"
+        pl.header.stamp = rospy.Time(0)
+
+
+        pr = PointStamped()
+        pr.point.x = -yr #-y
+        pr.point.y = 0
+        pr.point.z = xr #x
+        pr.header.frame_id = "camera_rgb_optical_frame"
+        pr.header.stamp = rospy.Time(0)
+
+        # point_s.point.x = x
+        # point_s.point.y = y
+        # point_s.point.z = 0.3
+        #point_s.header.frame_id = "base_link"
+        #point_s.header.stamp = rospy.Time(0)
+
+        # Define a stamped message for transformation - in the "camera rgb frame"
+        point_s = PointStamped()
+        point_s.point.x = -y #-y
+        point_s.point.y = 0
+        point_s.point.z = x #x
+        point_s.header.frame_id = "camera_rgb_optical_frame"
+        point_s.header.stamp = rospy.Time(0)
+
+        # Get the point in the "map" coordinate system
+        try:
+            point_world = self.tf_buf.transform(point_s, "map")
+            pwl = self.tf_buf.transform(pl, "map")
+            pwr = self.tf_buf.transform(pr, "map")
+
+        except Exception as e:
+            print(e)
+            return 
+
+
+        posel = Pose()
+        posel.position.x = pwl.point.x
+        posel.position.y = pwl.point.y
+        posel.position.z = pwl.point.z
+        posel.orientation.x = 0.0
+        posel.orientation.y = 0.0
+        posel.orientation.z = 0.0
+        posel.orientation.w = 1.0
+        poser = Pose()
+        poser.position.x = pwr.point.x
+        poser.position.y = pwr.point.y
+        poser.position.z = pwr.point.z
+        poser.orientation.x = 0.0
+        poser.orientation.y = 0.0
+        poser.orientation.z = 0.0
+        poser.orientation.w = 1.0
+
+
+        # Create a Pose object with the same position
+        pose = Pose()
+        pose.position.x = point_world.point.x
+        pose.position.y = point_world.point.y
+        pose.position.z = point_world.point.z
+
+        pose.orientation.x = 0.0
+        pose.orientation.y = 0.0
+        pose.orientation.z = 0.0
+        pose.orientation.w = 1.0
+
+        w = 1.5
+
+
+
+
+        # print(np.abs(posel.position.x - poser.position.x))
+        # print(np.abs(posel.position.y - poser.position.y))
+        if np.isnan(posel.position.x) or np.isnan(poser.position.x):
+            return
+
+        if np.abs(posel.position.x - poser.position.x) > np.abs(posel.position.y - poser.position.y):
+            print("X")
+        else:
+            print("Y") 
+
+        k = np.array([ ( pwl.point.x - pwr.point.x ), ( pwl.point.y - pwr.point.y )   ]) 
+        k /= np.linalg.norm(np.array([  ( pwl.point.x - pwr.point.x ), ( pwl.point.y - pwr.point.y )  ]))
+        k *= 0.6 * left
+        # print(k)
+
+        ang = np.arctan2( k[1] , k[0] ) * 180 / np.pi - 180
+        ang = np.arctan2( k[1] , k[0] ) 
+
+        # Create a Pose object with the same position
+        p = Pose()
+        p.position.x = pose.position.x - k[0]
+        p.position.y = pose.position.y - k[1]
+        p.position.z = pose.position.z
+
+        x,y,z,w = quaternion_from_euler(0,0,ang)
+        # print(x,y,z,w)
+
+        p.orientation.x = x
+        p.orientation.y = y
+        p.orientation.z = z
+        p.orientation.w = w
+        
+        for i in range(len(self.marker_array.markers)):
+
+            mrkr = self.marker_array.markers[i]
+            x = pose.position.x
+            y = pose.position.y
+            d = math.sqrt( ( x- mrkr.pose.position.x )**2 + ( y - mrkr.pose.position.y)**2 )
+            # print(d)
+            if d < 0.5 or math.isnan(d):
+                self.averages[i] += 1
+                self.marker_array.markers[i].pose.position.x += (x - self.marker_array.markers[i].pose.position.x) / self.averages[i] * w
+                self.marker_array.markers[i].pose.position.y += (y - self.marker_array.markers[i].pose.position.y) / self.averages[i] * w
+                self.markers_pub.publish(self.marker_array)
+
+                # if color[1] > 0.85:
+                #     self.green_array.markers[0].pose.position.x = self.marker_array.markers[i].pose.position.x
+                #     self.green_array.markers[0].pose.position.y = self.marker_array.markers[i].pose.position.y
+                #     self.green_pub.publish(self.green_array)
+                return
+
+        print("create")
+        # Create a marker used for visualization
+        self.marker_num += 1
+        marker = Marker()
+        marker.header.stamp = point_world.header.stamp
+        marker.header.frame_id = point_world.header.frame_id
+        marker.pose = pose
+        marker.type = Marker.CUBE
+        marker.action = Marker.ADD
+        marker.frame_locked = False
+        marker.lifetime = rospy.Duration.from_sec(1000)
+        marker.id = self.marker_num
+        marker.scale = Vector3(0.1, 0.1, 0.1)
+        marker.color = ColorRGBA(color[0], color[1], color[2], 1)
+        # g = np.random.randint(0,100)
+        # if g % 3 == 0:
+        #     marker.pose = poser
+        #     marker.color = ColorRGBA(0,0,1, 1)
+        # elif g % 3 == 1:
+        #     marker.pose = posel
+        #     marker.color = ColorRGBA(0,1,0, 1)
+        # else:
+        #     marker.pose = p
+        #     marker.color = ColorRGBA(1,0,0, 1)
+
+        self.marker_array.markers.append(marker)
+        self.averages.append(1)
+        self.markers_pub.publish(self.marker_array)
+
+        if color[1] > 0.85 and color[2] < 0.35:
+            self.marker_num += 1
+            marker = Marker()
+            marker.header.stamp = point_world.header.stamp
+            marker.header.frame_id = point_world.header.frame_id
+            marker.pose = pose
+            marker.type = Marker.CUBE
+            marker.action = Marker.ADD
+            marker.frame_locked = False
+            marker.lifetime = rospy.Duration.from_sec(1000)
+            marker.id = self.marker_num
+            marker.scale = Vector3(0.1, 0.1, 0.1)
+            marker.color = ColorRGBA(color[0], color[1], color[2], 1)
+            marker.pose = p
+
+            self.green_array.markers.append( marker )
+            self.green_pub.publish(self.green_array)
+
+
+
+    def image_callback(self,data):
+        print('I got a new image!')
+
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
+        except CvBridgeError as e:
+            print(e)
+
+        # Set the dimensions of the image
+        cv_image = cv_image[0:len(cv_image)-35,:]
+        
+        self.dims = cv_image.shape
+
+        cv2.imshow("Contour window",cv_image)
+        cv2.waitKey(1)
+        
+        # Tranform image to gayscale
+        gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+
+        # Do histogram equlization
+        img = cv2.equalizeHist(gray)
+
+        # Binarize the image, there are different ways to do it
+        #ret, thresh = cv2.threshold(img, 50, 255, 0)
+        #ret, thresh = cv2.threshold(img, 70, 255, cv2.THRESH_BINARY)
+        thresh = cv2.adaptiveThreshold(img, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 15, 25)
+
+        # Extract contours
+        contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_TC89_L1  )
+
+        # Example how to draw the contours, only for visualization purposes
+        cv2.drawContours(cv_image, contours, -1, (0, 255, 0), 1)
+
+
+        # Fit elipses to all extracted contours
+        elps = []
+        for cnt in contours:
+            #     print cnt
+            #     print cnt.shape
+            if cnt.shape[0] >= 20:
+                ellipse = cv2.fitEllipse(cnt)
+                elps.append(ellipse)
+
+
+        # Find two elipses with same centers
+        candidates = []
+        for n in range(len(elps)):
+            for m in range(n + 1, len(elps)):
+                e1 = elps[n]
+                e2 = elps[m]
+                dist = np.sqrt(((e1[0][0] - e2[0][0]) ** 2 + (e1[0][1] - e2[0][1]) ** 2))
+                # print(dist)
+                if dist < 60:
+                    candidates.append((e1,e2))
+
+
+        # x = int(candidates[0][0][0][0])
+        # y =int(candidates[0][0][0][1])
+        for e in elps:
+            print(e)
+            x = int(e[0][0])
+            y = int(e[0][1])
+    
+            cv2.circle(cv_image, ( x,y), radius=1, color=(255, 0, 0), thickness=5)
+
+
+        print("Processing is done! found", len(candidates), "candidates for rings")
+
+        #https://www.programcreek.com/python/example/89409/cv2.fitEllipse
+
+        if len(elps)>0:
+            cv2.imshow("Image window",cv_image)
+            cv2.waitKey(1)
+
+
+def main():
+
+    ring_finder = The_Ring()
+    # rate = rospy.Rate(2)
+
+    try:
+        rospy.spin()
+    except KeyboardInterrupt:
+        print("Shutting down")
+
+    cv2.destroyAllWindows()
+
+
+if __name__ == '__main__':
+    main()

@@ -10,5 +10,9 @@
   <!-- Map parameters config -->
   <rosparam file="$(find task2)/config/params.yaml"/>
 
+  <node name="move_arm" pkg="exercise7" type="move_arm.py"/>
+
+
+
 
 </launch>
