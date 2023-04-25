@@ -24,7 +24,7 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "geometry_msgs/PointStamped.h"
 
-ros::Publisher pubx;
+// ros::Publisher pubx;
 ros::Publisher puby;
 ros::Publisher pubm;
 
@@ -38,6 +38,7 @@ visualization_msgs::MarkerArray marker_array;
 void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 {
 	// All the objects needed
+	// std::cerr << "OMG" << std::endl;
 
 	ros::Time time_rec, time_test;
 	time_rec = ros::Time::now();
@@ -68,7 +69,7 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 	pcl::fromPCLPointCloud2(*cloud_filtered_blob, *cloud_filtered);
 
 	pcl::fromPCLPointCloud2(*cloud_blob, *cloud_filtered);
-	std::cerr << "PointCloud has: " << cloud_filtered->points.size() << " data points." << std::endl;
+	// std::cerr << "PointCloud has: " << cloud_filtered->points.size() << " data points." << std::endl;
 
 	sor.setInputCloud(cloud_blob);
 	sor.setLeafSize(0.015f, 0.015f, 0.015f);
@@ -94,8 +95,8 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 	seg.setModelType(pcl::SACMODEL_NORMAL_PLANE);
 	seg.setNormalDistanceWeight(0.1);
 	seg.setMethodType(pcl::SAC_RANSAC);
-	seg.setMaxIterations(100);
-	seg.setDistanceThreshold(0.03);
+	seg.setMaxIterations(80);
+	seg.setDistanceThreshold(0.07);
 	seg.setInputCloud(cloud_filtered);
 	seg.setInputNormals(cloud_normals);
 	// Obtain the plane inliers and coefficients
@@ -114,7 +115,7 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 
 	pcl::PCLPointCloud2 outcloud_plane;
 	pcl::toPCLPointCloud2(*cloud_plane, outcloud_plane);
-	pubx.publish(outcloud_plane);
+	// pubx.publish(outcloud_plane);
 
 	// Remove the planar inliers, extract the rest
 	extract.setNegative(true);
@@ -146,7 +147,7 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 	pcl::PointCloud<PointT>::Ptr cloud_cylinder(new pcl::PointCloud<PointT>());
 	extract.filter(*cloud_cylinder);
 
-	if( cloud_cylinder->points.empty() || cloud_cylinder->points.size() < 350 )
+	if( cloud_cylinder->points.empty() || cloud_cylinder->points.size() < 300 )
 		std::cerr << "NO CYLINDER" << std::endl;
 	else
 	{
@@ -286,7 +287,7 @@ int main(int argc, char **argv)
 	ros::Subscriber sub = nh.subscribe("input", 1, cloud_cb);
 
 	// Create a ROS publisher for the output point cloud
-	pubx = nh.advertise<pcl::PCLPointCloud2>("planes", 1);
+	// pubx = nh.advertise<pcl::PCLPointCloud2>("planes", 1);
 	puby = nh.advertise<pcl::PCLPointCloud2>("cylinder", 1);
 
 	pubm = nh.advertise<visualization_msgs::MarkerArray>("detected_cylinders", 100);

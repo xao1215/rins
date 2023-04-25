@@ -20,7 +20,7 @@ goal_sent = None
 num = None
 ring_num = 0
 green_pos = None
-
+cylinder_num = 0
 
 def generate_goal(rotation, x, y):
     # try:
@@ -102,8 +102,12 @@ def get_ring_num(msg):
     global ring_num
     ring_num  =  len(msg.markers)
 
+def get_cylinder_num(msg):
+    global cylinder_num
+    cylinder_num  =  len(msg.markers)
+
 def start_service():
-    global goal,face_detected,goal_sent,num,ring_num,green_pos
+    global goal,face_detected,goal_sent,num,ring_num,green_pos,cylinder_num
     face_detected = False
     goal_sent = False
     num = 0
@@ -120,6 +124,7 @@ def start_service():
     face_num = rospy.Subscriber('/face_num', Int64, get_num)
     green_pos_sub = rospy.Subscriber('/green_pos', MarkerArray, get_green_pos)
     ring_num = rospy.Subscriber('/detected_rings', MarkerArray, get_ring_num)
+    cylinder_num = rospy.Subscriber('/detected_cylinders', MarkerArray, get_cylinder_num)
     arm_pub = rospy.Publisher("/arm_command", String, queue_size=100)
     soundhandle = SoundClient()
     rospy.sleep(1)
@@ -138,8 +143,8 @@ def start_service():
     #     print(e)
 
     q = quaternion_from_euler(0, 0, 0)
-    xs = [ 0.066, 1.7, 2.87, 2.05, 1.5, -0.6, -1 ]
-    ys = [ 0.955, -1.2, -0.52, 2.5, 0.7, 0.2, 1.9 ]
+    xs = [ 0.066, 1.7, 2.87, 2.05, 1.5, -0.6, -0.35 ]
+    ys = [ 0.955, -1.2, -0.52, 2.5, 0.7, 0.2, 2.2 ]
     goals = [ i for i in range( len(xs) ) ]
     for i in range( len(goals) ):
         goals[i] = MoveBaseGoal()
@@ -172,7 +177,7 @@ def start_service():
         print(client.get_goal_status_text())
 
 
-        if ring_num == 1:
+        if ring_num == 4 and cylinder_num == 4:
             goto_green = True
 
 
