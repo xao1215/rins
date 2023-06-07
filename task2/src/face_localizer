@@ -156,7 +156,7 @@ class face_localizer:
             ang = np.arctan2( k[1] , k[0] ) * 180 / np.pi - 180
             ang = np.arctan2( k[1] , k[0] ) 
 
-            print(k, ang )
+            # print(k, ang )
 
             # print(ang)
 
@@ -169,7 +169,7 @@ class face_localizer:
             pose.position.z = point_world.point.z
 
             x,y,z,w = quaternion_from_euler(0,0,ang)
-            print(x,y,z,w)
+            # print(x,y,z,w)
 
             pose.orientation.x = x
             pose.orientation.y = y
@@ -229,6 +229,10 @@ class face_localizer:
         blob = cv2.dnn.blobFromImage(cv2.resize(rgb_image, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0))
         self.face_net.setInput(blob)
         face_detections = self.face_net.forward()
+        print(face_detections.shape)
+        print(face_detections[0,0].shape)
+
+
 
         for i in range(0, face_detections.shape[2]):
             confidence = face_detections[0, 0, i, 2]

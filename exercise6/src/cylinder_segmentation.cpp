@@ -37,6 +37,7 @@ visualization_msgs::MarkerArray marker_array;
 
 void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 {
+	if ( marker_array.markers.size() == 4 ){return;}
 	// All the objects needed
 	// std::cerr << "OMG" << std::endl;
 
@@ -77,10 +78,20 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 	// Convert to the templated PointCloud
 	pcl::fromPCLPointCloud2(*cloud_filtered_blob, *cloud);
 
+	std::cerr << "PointCloud BEFORE filtering has: " << cloud_filtered->points.size() << " data points." << std::endl;
+
 	// Build a passthrough filter to remove spurious NaNs
 	pass.setInputCloud(cloud);
 	pass.setFilterFieldName("z");
-	pass.setFilterLimits(0, 1.5);
+	pass.setFilterLimits(0.2, 1.5);
+	pass.filter(*cloud_filtered);
+
+	std::cerr << "PointCloud after filtering has: " << cloud_filtered->points.size() << " data points." << std::endl;
+
+
+	pass.setInputCloud(cloud);
+	pass.setFilterFieldName("y");
+	pass.setFilterLimits(-0.3, 0.09);
 	pass.filter(*cloud_filtered);
 	std::cerr << "PointCloud after filtering has: " << cloud_filtered->points.size() << " data points." << std::endl;
 
@@ -95,8 +106,8 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 	seg.setModelType(pcl::SACMODEL_NORMAL_PLANE);
 	seg.setNormalDistanceWeight(0.1);
 	seg.setMethodType(pcl::SAC_RANSAC);
-	seg.setMaxIterations(80);
-	seg.setDistanceThreshold(0.07);
+	seg.setMaxIterations(1000);
+	seg.setDistanceThreshold(0.3);
 	seg.setInputCloud(cloud_filtered);
 	seg.setInputNormals(cloud_normals);
 	// Obtain the plane inliers and coefficients
@@ -148,16 +159,17 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 	extract.filter(*cloud_cylinder);
 
 	if( cloud_cylinder->points.empty() || cloud_cylinder->points.size() < 300 )
-		std::cerr << "NO CYLINDER" << std::endl;
+		// std::cerr << "NO CYLINDER" << std::endl;
+		int e = 4;
 	else
 	{
 		
-		std::cerr << "CZLINDER: " << cloud_cylinder->points.size() << " data points." << std::endl;
+		// std::cerr << "CZLINDER: " << cloud_cylinder->points.size() << " data points." << std::endl;
 
 
 
 		pcl::compute3DCentroid(*cloud_cylinder, centroid);
-		std::cerr << "centroid of the cylindrical component: " << centroid[0] << " " << centroid[1] << " " << centroid[2] << " " << centroid[3] << std::endl;
+		// std::cerr << "centroid of the cylindrical component: " << centroid[0] << " " << centroid[1] << " " << centroid[2] << " " << centroid[3] << std::endl;
 
 
 		// Create a point in the "camera_rgb_optical_frame"
@@ -187,16 +199,18 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 		}
 		catch (tf2::TransformException &ex)
 		{
-			ROS_WARN("Transform warning: %s\n", ex.what());
+			// ROS_WARN("Transform warning: %s\n", ex.what());
+			int e = 4;
+
 		}
 
 		// std::cerr << tss ;
 
 		tf2::doTransform(point_camera, point_map, tss);
 
-		std::cerr << "point_camera: " << point_camera.point.x << " " << point_camera.point.y << " " << point_camera.point.z << std::endl;
+		// std::cerr << "point_camera: " << point_camera.point.x << " " << point_camera.point.y << " " << point_camera.point.z << std::endl;
 
-		std::cerr << "point_map: " << point_map.point.x << " " << point_map.point.y << " " << point_map.point.z << std::endl;
+		// std::cerr << "point_map: " << point_map.point.x << " " << point_map.point.y << " " << point_map.point.z << std::endl;
 
 		marker.header.frame_id = "map";
 		marker.header.stamp = ros::Time::now();
@@ -230,7 +244,7 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 			int y = marker_array.markers[i].pose.position.y - point_map.point.y;
 			int dist = sqrt(x*x + y*y);
 			if( dist < 0.15 ){ 		
-          std::cerr << "alredz there" << std::endl;
+        //   std::cerr << "alredz there" << std::endl;
 
         pcl::PCLPointCloud2 outcloud_cylinder;
 		    pcl::toPCLPointCloud2(*cloud_cylinder, outcloud_cylinder);

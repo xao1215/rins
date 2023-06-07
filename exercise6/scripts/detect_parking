@@ -37,10 +37,14 @@ class The_Ring:
         self.marker_num = 1
 
         self.arm = ""
+        self.look = False
 
         def doshit(data):
-            rospy.sleep(0.5)
+            rospy.sleep(2)
             self.arm = data.data.strip()
+
+            # rostopic pub /arm_command std_msgs/String "data: 'retract'"
+
 
         self.arm_sub = rospy.Subscriber("/arm_command", String, doshit)
 
@@ -63,13 +67,18 @@ class The_Ring:
         self.twist_pub = rospy.Publisher("/cmd_vel_mux/input/navi",Twist, queue_size=50)
         self.rotate = True
         self.center = True
+        self.cheat = -1
 
 
 
 
     def image_callback(self,data):
-        if self.arm != "extend":
-            return
+
+        # elif self.arm == "extend" and not self.look:
+            # self.look = True
+            # rospy.sleep(2)
+
+            
     
         # print('I got a new image!')
 
@@ -83,8 +92,11 @@ class The_Ring:
         
         self.dims = cv_image.shape
 
-        # cv2.imshow("Contour window",cv_image)
-        # cv2.waitKey(1)
+
+        if self.arm != "extend":
+            cv2.imshow("Contour window",cv_image)
+            cv2.waitKey(1)
+            return
         
         # Tranform image to gayscale
         gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
@@ -101,31 +113,41 @@ class The_Ring:
         contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_TC89_L1  )
 
         # Example how to draw the contours, only for visualization purposes
-        cv2.drawContours(cv_image, contours, -1, (0, 255, 0), 1)
+        # cv2.drawContours(cv_image, contours, -1, (0, 255, 0), 1)
 
 
         # Fit elipses to all extracted contours
         elps = []
         for cnt in contours:
             #     print cnt
-            #     print cnt.shape
-            if cnt.shape[0] >= 100:
+            if cnt.shape[0] >= 30:
                 ellipse = cv2.fitEllipse(cnt)
                 elps.append(ellipse)
 
 
         # Find two elipses with same centers
         candidates = []
-        for n in range(len(elps)):
-            for m in range(n + 1, len(elps)):
-                e1 = elps[n]
-                e2 = elps[m]
-                dist = np.sqrt(((e1[0][0] - e2[0][0]) ** 2 + (e1[0][1] - e2[0][1]) ** 2))
-                # print(dist)
-                # print(dist)
-                if dist < 50:
-                    candidates.append(e1)
-                    candidates.append(e2)
+        for e in elps:
+            # if e[1][0] / e[1][1] < 1.15 and e[1][0] / e[1][1] > 0.85 and ( e[1][0] < 500 and e[1][1] < 500 ): 
+            if ( e[1][0] > 125 and e[1][1] > 125 ) and ( e[1][0] < 500 and e[1][1] < 500 ): 
+                candidates.append(e)
+
+
+        # for n in range(len(elps)):
+        #     for m in range(n + 1, len(elps)):
+        #         e1 = elps[n]
+        #         e2 = elps[m]
+        #         dist = np.sqrt(((e1[0][0] - e2[0][0]) ** 2 + (e1[0][1] - e2[0][1]) ** 2))
+        #         # print(dist)
+        #         rospy.loginfo(dist)
+        #         if dist < 50:
+        #             # print(e1[1][0] / e1[1][1])
+        #             # if e1[1][0] / e1[1][1] < 1.1 and e1[1][0] / e1[1][1] > 0.9: 
+        #             candidates.append(e1)
+        #             candidates.append(e2)
+
+        #             # if e2[1][0] / e2[1][1] < 1.1 and e2[1][0] / e2[1][1] > 0.9: 
+        #                 # candidates.append(e2)
 
 
 
@@ -155,22 +177,25 @@ class The_Ring:
             # print(e)
             # x = int(e[0][0])
             # y = int(e[0][1])
-            cv2.circle(cv_image, ( int(e[0][0]),int(e[0][1])), radius=1, color=(0, 255, 0), thickness=5)
-            cv2.ellipse(cv_image, e, (255, 255, 0), 1)
+            cv2.circle(cv_image, ( int(e[0][0]),int(e[0][1])), radius=1, color=(0, 122, 0), thickness=5)
+            cv2.ellipse(cv_image, e, (122, 122, 0), 1)
 
             # elps[0,0] = list(elps[0,0])
             x += e[0][0]
             y += e[0][1]
 
+        if len(candidates) == 0:
+            return
+    
         x /= len(candidates)
         y /= len(candidates)
         # print(np.unique(gray[:gray.shape[0]-50,:], return_counts= True))
         cv2.circle(cv_image, ( int(x),int(y)), radius=1, color=(255, 0, 255), thickness=5)
 
 
-        # self.rotate = False
-        # self.center = False
-        # print(x,y,self.rotate,self.center)
+
+        #rotate until find perfect circle 
+
 
         # align rotation to center of parking spot
         if self.rotate:
@@ -186,8 +211,8 @@ class The_Ring:
         # move position to center of parking spot
         elif not self.rotate and self.center:
             g = gray[:gray.shape[0]-50,:]
-            twist.linear.x = 0.05
-            if not np.any(gray[:gray.shape[0]-120,:]==0):
+            twist.linear.x = 0.07
+            if not np.any(gray[int(gray.shape[0]/2):gray.shape[0]-115,:]==0):
                 print("DONE")
                 self.center = False
 

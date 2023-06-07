@@ -236,8 +236,9 @@ class The_Ring:
         self.marker_array.markers.append(marker)
         self.averages.append(1)
         self.markers_pub.publish(self.marker_array)
-
-        if color[1] > 0.85 and color[2] < 0.35:
+        print(color)
+        rospy.loginfo(color)
+        if color[1] > 0.85 and color[2] > 0.85:
             self.marker_num += 1
             marker = Marker()
             marker.header.stamp = point_world.header.stamp
@@ -274,8 +275,8 @@ class The_Ring:
         depth_image = np.array(depth_image, dtype= np.uint8)
 
         # SHOW DEPTH IMG
-        cv2.imshow("Depth window", depth_image)
-        cv2.waitKey(1)
+        # cv2.imshow("Depth window", depth_image)
+        # cv2.waitKey(1)
 
         try:
             # cv_image = rospy.wait_for_message('/camera/rgb/image_raw', Image)
@@ -357,8 +358,8 @@ class The_Ring:
             r = np.sum( orig_rgb[ where[0],where[1],2 ] ) / len(where[1]) / 255
 
             # d_image = self.bridge.imgmsg_to_cv2(depth_image, "16UC1")
-            cv2.imshow("Ring {}".format(i), depth_image[x_min:x_max,y_min:y_max])
-            cv2.waitKey(1)
+            # cv2.imshow("Ring {}".format(i), depth_image[x_min:x_max,y_min:y_max])
+            # cv2.waitKey(1)
 
             h = int(x_min/2 + x_max/2)
             w = int(y_min/2 + y_max/2)
@@ -480,9 +481,9 @@ class The_Ring:
         
             self.get_pose(e1, float(np.mean(depth_image[x_min:x_max,y_min:y_max]))/1.000)
 
-        if len(candidates)>0:
-                cv2.imshow("Image window",cv_image)
-                cv2.waitKey(1)
+        # if len(candidates)>0:
+        #         cv2.imshow("Image window",cv_image)
+        #         cv2.waitKey(1)
 
     def depth_callback(self,data):
 
@@ -499,8 +500,8 @@ class The_Ring:
         depth_image  =depth_image/np.max(depth_image)*255
         depth_image = np.array(depth_image, dtype= np.uint8)
 
-        cv2.imshow("Depth window", depth_image)
-        cv2.waitKey(1)
+        # cv2.imshow("Depth window", depth_image)
+        # cv2.waitKey(1)
 
         try:
             cv_image = rospy.wait_for_message('/camera/rgb/image_raw', Image)
@@ -517,8 +518,8 @@ class The_Ring:
 
         contours, hierarchy = cv2.findContours(image_viz, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(image_viz, contours, -1, (255, 0, 0), 3)
-        cv2.imshow("Contour window",image_viz)
-        cv2.waitKey(1)
+        # cv2.imshow("Contour window",image_viz)
+        # cv2.waitKey(1)
 
         # Fit elipses to all extracted contours
         elps = []
@@ -573,17 +574,17 @@ class The_Ring:
             y_max = y2 if y2 < cv_image.shape[1] else cv_image.shape[1]
 
             # d_image = self.bridge.imgmsg_to_cv2(depth_image, "16UC1")
-            cv2.imshow("Depth ring", depth_image[x_min:x_max,y_min:y_max])
-            cv2.waitKey(1)
+            # cv2.imshow("Depth ring", depth_image[x_min:x_max,y_min:y_max])
+            # cv2.waitKey(1)
             distanc = float(np.nanmean(orig_depth[x_min:x_max,y_min:y_max]))
 
             print(distanc)
             self.get_pose(e1, distanc/1.0)
 
 
-        if len(candidates) > 0:
-            cv2.imshow("Image window",cv_image)
-            cv2.waitKey(1)
+        # if len(candidates) > 0:
+        #     cv2.imshow("Image window",cv_image)
+        #     cv2.waitKey(1)
 
 
 def main():

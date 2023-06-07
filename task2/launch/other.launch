@@ -1,10 +1,11 @@
 <launch>
 
-
-
   <node name="goals" pkg="task2" type="goals.py"/>
-  <node name="face_localizer" pkg="task2" type="face_localizer"/>
-  <node name="soundplay_node" pkg="sound_play" type="soundplay_node.py"/>
+  <include file="$(find exercise6)/launch/find_cylinder.launch"/>
+  <node name="detect_rings" pkg="exercise6" type="detect_rings"/>
+  <node name="detect_parking" pkg="exercise6" type="detect_parking"/>
+
+  <!-- <node name="soundplay_node" pkg="sound_play" type="soundplay_node.py"/> -->
 
 
 

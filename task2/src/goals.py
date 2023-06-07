@@ -133,6 +133,7 @@ def start_service():
     markers_pub = rospy.Publisher('/face_markers', MarkerArray, queue_size=1000)
     marker_array = MarkerArray()
     nc = rospy.Subscriber('face_num', Int64, get_num, queue_size=1000)
+    arm_pub.publish( 'retract' )
 
 
     id = 0
@@ -143,8 +144,8 @@ def start_service():
     #     print(e)
 
     q = quaternion_from_euler(0, 0, 0)
-    xs = [ 0.066, 1.7, 2.87, 2.05, 1.5, -0.6, -0.35 ]
-    ys = [ 0.955, -1.2, -0.52, 2.5, 0.7, 0.2, 2.2 ]
+    xs = [ -0.12, -0.4, 1.7, 2.87, 2.05, -1, -0.6, -0.35 ]
+    ys = [ 0.85, 0.4, -1.2, -0.52, 2.5, 1.85, 0.2, 2.2 ]
     goals = [ i for i in range( len(xs) ) ]
     for i in range( len(goals) ):
         goals[i] = MoveBaseGoal()
@@ -165,7 +166,6 @@ def start_service():
     r = rospy.Rate(2)
     green_sent = False
     park = False
-    arm_pub.publish( 'retract' )
     goto_green = False
 
 
