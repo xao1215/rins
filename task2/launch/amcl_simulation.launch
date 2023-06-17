@@ -16,4 +16,8 @@
 
   <!-- Move base -->
   <include file="$(find turtlebot_navigation)/launch/includes/move_base.launch.xml"/>
+
+   <!-- Map parameters config -->
+  <rosparam file="$(find task2)/config/params.yaml"/>
+
 </launch>

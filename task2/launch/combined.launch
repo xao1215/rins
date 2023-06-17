@@ -2,17 +2,12 @@
 
 
   <include file="$(find exercise7)/launch/rins_world.launch"/>
+
   <include file="$(find task2)/launch/amcl_simulation.launch"/>
   
-  <!-- rviz -->
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find turtlebot_rviz_launchers)/rviz/navigation.rviz"/>
 
-  <!-- Map parameters config -->
-  <rosparam file="$(find task2)/config/params.yaml"/>
-
   <node name="move_arm" pkg="exercise7" type="move_arm.py"/>
-
-
 
 
 </launch>

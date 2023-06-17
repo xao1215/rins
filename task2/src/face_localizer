@@ -147,18 +147,13 @@ class face_localizer:
             robot = self.tf_buf.transform(robot, "map")
 
 
-            # if pl.point.x - pr.point.x <
             k = np.array([ ( pl.point.y - pr.point.y ) , - ( pl.point.x - pr.point.x ) ])
             k /= np.linalg.norm(np.array([ ( pl.point.y - pr.point.y ) , - ( pl.point.x - pr.point.x ) ]))
-            k *= 0.35
-
+            k *= 0.385
 
             ang = np.arctan2( k[1] , k[0] ) * 180 / np.pi - 180
             ang = np.arctan2( k[1] , k[0] ) 
 
-            # print(k, ang )
-
-            # print(ang)
 
 
 
@@ -177,7 +172,7 @@ class face_localizer:
             pose.orientation.w = w
 
         except Exception as e:
-            print(e)
+            # print(e)
             pose = None
 
         return pose
@@ -186,7 +181,7 @@ class face_localizer:
         self.finish_service.publish(self.marker_num-1)
 
     def find_faces(self):
-        print('I got a new image!')
+        # print('I got a new image!')
 
         # Get the next rgb and depth images that are posted from the camera
         try:
@@ -229,8 +224,8 @@ class face_localizer:
         blob = cv2.dnn.blobFromImage(cv2.resize(rgb_image, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0))
         self.face_net.setInput(blob)
         face_detections = self.face_net.forward()
-        print(face_detections.shape)
-        print(face_detections[0,0].shape)
+        # print(face_detections.shape)
+        # print(face_detections[0,0].shape)
 
 
 
@@ -245,13 +240,12 @@ class face_localizer:
                 face_region = rgb_image[y1:y2, x1:x2]
 
                 # Visualize the extracted face
-                # cv2.imshow("ImWindow", face_region)
-                # cv2.waitKey(1)
+                
 
                 # Find the distance to the detected face
                 face_distance = float(np.nanmean(depth_image[y1:y2,x1:x2]))
                 depth_arr = [  float(np.nanmean(depth_image[y1:y2,x1 if x1 >= 0 else 0])), float(np.nanmean(depth_image[y1:y2,x2 if x2 < self.dims[1] else self.dims[1] - 1])) ]
-                print('Distance to face', face_distance)
+                # print('Distance to face', face_distance)
                 if face_distance > 1.8 or np.isnan(face_distance):
                     return
 
@@ -274,7 +268,7 @@ class face_localizer:
                             marker.type = Marker.SPHERE
                             marker.action = Marker.ADD
                             marker.frame_locked = False
-                            marker.lifetime = rospy.Duration.from_sec(100000)
+                            marker.lifetime = rospy.Duration.from_sec(2)
                             marker.id =  self.marker_all
                             self.marker_all += 1
                             marker.scale = Vector3(0.1, 0.1, 0.1)
@@ -284,7 +278,8 @@ class face_localizer:
 
                             self.existing_face = True
                         else:
-                            print("new\ndistance:", math.sqrt( (face.position.x - pose.position.x)**2 +  (face.position.y - pose.position.y)**2 ) )
+                            print("new")
+                            # print("new\ndistance:", math.sqrt( (face.position.x - pose.position.x)**2 +  (face.position.y - pose.position.y)**2 ) )
 
 
                     if not self.existing_face:

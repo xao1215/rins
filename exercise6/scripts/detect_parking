@@ -37,7 +37,6 @@ class The_Ring:
         self.marker_num = 1
 
         self.arm = ""
-        self.look = False
 
         def doshit(data):
             rospy.sleep(2)
@@ -74,9 +73,9 @@ class The_Ring:
 
     def image_callback(self,data):
 
-        # elif self.arm == "extend" and not self.look:
-            # self.look = True
-            # rospy.sleep(2)
+
+        if self.arm != "extend":
+            return
 
             
     
@@ -93,10 +92,10 @@ class The_Ring:
         self.dims = cv_image.shape
 
 
-        if self.arm != "extend":
-            cv2.imshow("Contour window",cv_image)
-            cv2.waitKey(1)
-            return
+        # if self.arm != "extend":
+        #     cv2.imshow("Contour window",cv_image)
+        #     cv2.waitKey(1)
+        #     return
         
         # Tranform image to gayscale
         gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)

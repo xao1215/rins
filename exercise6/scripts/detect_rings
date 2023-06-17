@@ -16,6 +16,7 @@ import math
 from tf.transformations import quaternion_from_euler
 
 
+
 class The_Ring:
     def __init__(self):
         rospy.init_node('image_converter', anonymous=True)
@@ -28,7 +29,6 @@ class The_Ring:
 
         # Marker array object used for visualizations
         self.marker_array = MarkerArray()
-        self.green_array = MarkerArray()
 
         self.marker_num = 1
 
@@ -43,7 +43,11 @@ class The_Ring:
 
         # Publiser for the visualization markers
         self.markers_pub = rospy.Publisher('/detected_rings', MarkerArray, queue_size=1000)
-        self.green_pub = rospy.Publisher('/green_pos', MarkerArray, queue_size=1000)
+        self.marker_array2 = MarkerArray()
+        self.marker_num2 = 1
+
+        self.markers_pub2 = rospy.Publisher('/detected_rings2', MarkerArray, queue_size=1000)
+
 
         self.averages = []
 
@@ -54,8 +58,10 @@ class The_Ring:
 
     def get_pose(self,ee,distt,color, left):
         # Calculate the posit  ion of the detected ellipse
-        e,y_min,y_max = ee 
+        e,y_min,y_max = ee  
         dist,dl,dr = distt
+        if np.isnan(np.array([distt])).any():
+            return;
 
         k_f = 525 # kinect focal length in pixels
         elipse_x = self.dims[1] / 2 - e[0][0]
@@ -74,15 +80,15 @@ class The_Ring:
         ar = np.arctan2(elipse_r,k_f)
         # print(angle_to_target,al,ar)
 
-        xl,yl = dl*np.cos(al), dl*np.sin(al)
-        xr,yr = dr*np.cos(ar), dr*np.sin(ar)
+        xl,yl = dr*np.cos(al), dr*np.sin(al)
+        xr,yr = dl*np.cos(ar), dl*np.sin(ar)
         # print(dist,dl,dr)
 
 
         # Get the angles in the base_link relative coordinate system
         x,y = dist*np.cos(angle_to_target), dist*np.sin(angle_to_target)
 
-        ### Define a stamped message for transformation - directly in "base_frame"
+        ### Define a stamped message for transformation - direc tly in "base_frame"
         pl = PointStamped()
         pl.point.x = -yl #-y
         pl.point.y = 0
@@ -152,7 +158,7 @@ class The_Ring:
         pose.orientation.z = 0.0
         pose.orientation.w = 1.0
 
-        w = 1.5
+        w = 1
 
 
 
@@ -162,10 +168,11 @@ class The_Ring:
         if np.isnan(posel.position.x) or np.isnan(poser.position.x):
             return
 
-        if np.abs(posel.position.x - poser.position.x) > np.abs(posel.position.y - poser.position.y):
-            print("X")
-        else:
-            print("Y") 
+        # print(np.abs(posel.position.x - poser.position.x), np.abs(posel.position.y - poser.position.y) )
+        # if np.abs(posel.position.x - poser.position.x) > np.abs(posel.position.y - poser.position.y):
+        #     print("X")
+        # else:
+        #     print("Y") 
 
         k = np.array([ ( pwl.point.x - pwr.point.x ), ( pwl.point.y - pwr.point.y )   ]) 
         k /= np.linalg.norm(np.array([  ( pwl.point.x - pwr.point.x ), ( pwl.point.y - pwr.point.y )  ]))
@@ -189,72 +196,113 @@ class The_Ring:
         p.orientation.z = z
         p.orientation.w = w
         
-        for i in range(len(self.marker_array.markers)):
+        for i in range(int(len(self.marker_array.markers)/2)):
 
-            mrkr = self.marker_array.markers[i]
+            ind = int(i*2)
+
+            mrkr = self.marker_array.markers[ind]
             x = pose.position.x
             y = pose.position.y
             d = math.sqrt( ( x- mrkr.pose.position.x )**2 + ( y - mrkr.pose.position.y)**2 )
+
+            # mrkr2 = self.marker_array.markers[ind]
+            xx = p.position.x
+            yy = p.position.y
+            
             # print(d)
             if d < 0.5 or math.isnan(d):
                 self.averages[i] += 1
-                self.marker_array.markers[i].pose.position.x += (x - self.marker_array.markers[i].pose.position.x) / self.averages[i] * w
-                self.marker_array.markers[i].pose.position.y += (y - self.marker_array.markers[i].pose.position.y) / self.averages[i] * w
+                self.marker_array.markers[ind].pose.position.x += (x - self.marker_array.markers[ind].pose.position.x) / self.averages[i] * w
+                self.marker_array.markers[ind].pose.position.y += (y - self.marker_array.markers[ind].pose.position.y) / self.averages[i] * w
+                # self.markers_pub.publish(self.marker_array)
+
+                self.marker_array.markers[ind+1].pose.position.x += (xx - self.marker_array.markers[ind+1].pose.position.x) / self.averages[i] * w
+                self.marker_array.markers[ind+1].pose.position.y += (yy - self.marker_array.markers[ind+1].pose.position.y) / self.averages[i] * w
                 self.markers_pub.publish(self.marker_array)
 
                 # if color[1] > 0.85:
                 #     self.green_array.markers[0].pose.position.x = self.marker_array.markers[i].pose.position.x
                 #     self.green_array.markers[0].pose.position.y = self.marker_array.markers[i].pose.position.y
                 #     self.green_pub.publish(self.green_array)
+
+
+
+                # self.marker_num2 += 1
+                # marker = Marker()
+                # marker.header.stamp = point_world.header.stamp
+                # marker.header.frame_id = point_world.header.frame_id
+                # marker.pose = posel
+                # marker.type = Marker.SPHERE
+                # marker.action = Marker.ADD
+                # marker.frame_locked = False
+                # marker.lifetime = rospy.Duration.from_sec(2)
+                # marker.id = self.marker_num2
+                # marker.scale = Vector3(0.1, 0.1, 0.1)
+                # marker.color = ColorRGBA(1,0.2,0.2, 1)      
+                # if (len(self.marker_array2.markers) ) > 0:
+                #     self.marker_array2.markers[0] =  marker 
+                # else:
+                #     self.marker_array2.markers.append( marker )
+                # self.marker_num2 += 1
+                # marker = Marker()
+                # marker.header.stamp = point_world.header.stamp
+                # marker.header.frame_id = point_world.header.frame_id
+                # marker.pose = poser
+                # marker.type = Marker.SPHERE
+                # marker.action = Marker.ADD
+                # marker.frame_locked = False
+                # marker.lifetime = rospy.Duration.from_sec(2)
+                # marker.id = self.marker_num2
+                # marker.scale = Vector3(0.1, 0.1, 0.1)
+                # marker.color = ColorRGBA(0.2,1,0.2, 1)
+                # if (len(self.marker_array2.markers) ) > 1:
+                #     self.marker_array2.markers[1] =  marker 
+                # else:
+                #     self.marker_array2.markers.append( marker )
+                # self.markers_pub2.publish(self.marker_array2)
+
+
                 return
 
-        print("create")
+                
+
         # Create a marker used for visualization
         self.marker_num += 1
         marker = Marker()
         marker.header.stamp = point_world.header.stamp
         marker.header.frame_id = point_world.header.frame_id
         marker.pose = pose
-        marker.type = Marker.CUBE
+        marker.type = Marker.SPHERE
         marker.action = Marker.ADD
         marker.frame_locked = False
         marker.lifetime = rospy.Duration.from_sec(1000)
         marker.id = self.marker_num
         marker.scale = Vector3(0.1, 0.1, 0.1)
         marker.color = ColorRGBA(color[0], color[1], color[2], 1)
-        # g = np.random.randint(0,100)
-        # if g % 3 == 0:
-        #     marker.pose = poser
-        #     marker.color = ColorRGBA(0,0,1, 1)
-        # elif g % 3 == 1:
-        #     marker.pose = posel
-        #     marker.color = ColorRGBA(0,1,0, 1)
-        # else:
-        #     marker.pose = p
-        #     marker.color = ColorRGBA(1,0,0, 1)
 
         self.marker_array.markers.append(marker)
         self.averages.append(1)
-        self.markers_pub.publish(self.marker_array)
-        print(color)
-        rospy.loginfo(color)
-        if color[1] > 0.85 and color[2] > 0.85:
-            self.marker_num += 1
-            marker = Marker()
-            marker.header.stamp = point_world.header.stamp
-            marker.header.frame_id = point_world.header.frame_id
-            marker.pose = pose
-            marker.type = Marker.CUBE
-            marker.action = Marker.ADD
-            marker.frame_locked = False
-            marker.lifetime = rospy.Duration.from_sec(1000)
-            marker.id = self.marker_num
-            marker.scale = Vector3(0.1, 0.1, 0.1)
-            marker.color = ColorRGBA(color[0], color[1], color[2], 1)
-            marker.pose = p
+        # self.markers_pub.publish(self.marker_array)
 
-            self.green_array.markers.append( marker )
-            self.green_pub.publish(self.green_array)
+        # rospy.loginfo(color)
+
+        # if color[1] > 0.85 and color[2] > 0.85:
+        self.marker_num += 1
+        marker = Marker()
+        marker.header.stamp = point_world.header.stamp
+        marker.header.frame_id = point_world.header.frame_id
+        marker.pose = p
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+        marker.frame_locked = False
+        marker.lifetime = rospy.Duration.from_sec(1000)
+        marker.id = self.marker_num
+        marker.scale = Vector3(0.1, 0.1, 0.1)
+        marker.color = ColorRGBA(color[0], color[1], color[2], 1)
+
+        self.marker_array.markers.append( marker )
+        self.markers_pub.publish(self.marker_array)
+
 
 
 
@@ -274,7 +322,7 @@ class The_Ring:
         depth_image = depth_image/np.max(depth_image)*255
         depth_image = np.array(depth_image, dtype= np.uint8)
 
-        # SHOW DEPTH IMG
+        # # SHOW DEPTH IMG
         # cv2.imshow("Depth window", depth_image)
         # cv2.waitKey(1)
 
@@ -320,7 +368,7 @@ class The_Ring:
                 if dist < 5:
                     candidates.append((e1,e2))
 
-        print("Processing is done! found", len(candidates), "candidates for rings")
+        # print("Processing is done! found", len(candidates), "candidates for rings")
 
         # Extract the depth from the depth image
         for i,c in enumerate(candidates):
@@ -346,7 +394,9 @@ class The_Ring:
             y_min = y1 if y1 > 0 else 0
             y_max = y2 if y2 < cv_image.shape[1] else cv_image.shape[1]
 
-
+            distanc = float(np.nanmean(orig_depth[x_min:x_max,y_min:y_max]))
+            if distanc > 2:
+                continue
 
             rgb = np.copy(orig_rgb)
             rgb[:,:,:] = 0
@@ -366,25 +416,33 @@ class The_Ring:
             ld = depth_image[:,w-50:w]
             rd = depth_image[:,w:w+50]
 
+
             ld[ld == 0] = 255
             rd[rd == 0] = 255
-            # for x in range(len(ld)):
-            #     for y in range(len(ld[x])):
-            #         if ld[x,y] == 0:
-            #             ld[x,y] = 255
-            #         if rd[x,y] == 0:
-            #             rd[x,y] = 255
-            print( np.sum( ld ), np.sum( rd ) ) 
-            left = np.sum( ld ) - np.sum( rd ) 
+
+
+            left = int(np.sum( ld )) - int(np.sum( rd )) 
             left /= abs(left)
-            # left = True if np.sum( ld ) < np.sum( rd ) else False
 
+            
             ring = orig_depth[x_min:x_max,y_min:y_max]
-            distanc = float(np.nanmean(orig_depth[x_min:x_max,y_min:y_max]))
-            dl = float(np.nanmean(ring[ int(len(ring)/2)-5:int(len(ring)/2)+5, 0:int(len(ring)/2) ]))
-            dr = float(np.nanmean(ring[ int(len(ring)/2)-5:int(len(ring)/2)+5, int(len(ring)/2):len(ring) ]))
+            
+            # try:
+            #     cv2.imshow("Depth window", ring[ :, :5 ])
+            #     cv2.imshow("Depth window2", ring[ :, -5: ])
 
-            distanc = float(np.nanmean(orig_depth[x_min:x_max,y_min:y_max]))
+            #     cv2.waitKey(1)
+            # except Exception as e:
+            #     return
+            
+            try:                
+                dl = float(np.nanmean((ring[ :, :3 ])))       #was 3 before!
+                dr = float(np.nanmean((ring[ :, -3: ])))
+            except Exception as e:
+                return;
+            # print(list((ring[ :, :3])))
+            # print(dl,dr)
+
             if distanc < 2:
                 self.get_pose( [e1,y_min,y_max], [distanc,dl,dr], [r,g,b], left )
 
@@ -421,9 +479,9 @@ class The_Ring:
         contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
         # Example how to draw the contours, only for visualization purposes
-        cv2.drawContours(img, contours, -1, (255, 0, 0), 3)
-        cv2.imshow("Contour window",img)
-        cv2.waitKey(1)
+        # cv2.drawContours(img, contours, -1, (255, 0, 0), 3)
+        # cv2.imshow("Contour window",img)
+        # cv2.waitKey(1)
 
         # Fit elipses to all extracted contours
         elps = []

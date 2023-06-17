@@ -25,12 +25,18 @@ class Arm_Mover():
 
         self.extend = JointTrajectory()
         self.extend.joint_names = ["arm_shoulder_pan_joint", "arm_shoulder_lift_joint", "arm_elbow_flex_joint", "arm_wrist_flex_joint"]
-        self.extend.points = [JointTrajectoryPoint(positions=[0,0.3,1,0],
+        self.extend.points = [JointTrajectoryPoint(positions=[0,0.3,1,0.0],
                                                     time_from_start = rospy.Duration(1))]
         
         self.right = JointTrajectory()
         self.right.joint_names = ["arm_shoulder_pan_joint", "arm_shoulder_lift_joint", "arm_elbow_flex_joint", "arm_wrist_flex_joint"]
         self.right.points = [JointTrajectoryPoint(positions=[-1.57,0.3,1,0],
+                                                    time_from_start = rospy.Duration(1))]
+        
+
+        self.cyl = JointTrajectory()
+        self.cyl.joint_names = ["arm_shoulder_pan_joint", "arm_shoulder_lift_joint", "arm_elbow_flex_joint", "arm_wrist_flex_joint"]
+        self.cyl.points = [JointTrajectoryPoint(positions=[0,0.3,1,-0.3],
                                                     time_from_start = rospy.Duration(1))]
 
     def new_user_command(self, data):
@@ -49,6 +55,9 @@ class Arm_Mover():
             elif self.user_command == 'right':
                 self.arm_movement_pub.publish(self.right)
                 print('Right-ed arm!')
+            elif self.user_command == 'cyl':
+                self.arm_movement_pub.publish(self.cyl)
+                print('cylinder-extended arm!')
             else:
                 print('Unknown instruction:', self.user_command)
                 return(-1)
