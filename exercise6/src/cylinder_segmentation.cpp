@@ -229,10 +229,14 @@ void cloud_cb(const pcl::PCLPointCloud2ConstPtr &cloud_blob)
 				g += (nig & 65280) >> 8;
 				b += (nig & 255);			
 		}
+
 		r = (r / (cloud_sajz * 255.0f));
 		g =  (g / (cloud_sajz * 255.0f));
 		b =  (b / (cloud_sajz * 255.0f));
-		
+
+		if( sqrt((r-g)*(r-g)) < 0.03 && sqrt((g-b)*(g-b)) < 0.03 ){
+			return;
+		}
 
 		for( int i = 0; i < marker_array.markers.size(); i++ ){
 			int x = marker_array.markers[i].pose.position.x - point_map_2.point.x;

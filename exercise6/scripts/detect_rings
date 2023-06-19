@@ -43,10 +43,10 @@ class The_Ring:
 
         # Publiser for the visualization markers
         self.markers_pub = rospy.Publisher('/detected_rings', MarkerArray, queue_size=1000)
-        self.marker_array2 = MarkerArray()
-        self.marker_num2 = 1
+        # self.marker_array2 = MarkerArray()
+        # self.marker_num2 = 1
 
-        self.markers_pub2 = rospy.Publisher('/detected_rings2', MarkerArray, queue_size=1000)
+        # self.markers_pub2 = rospy.Publisher('/detected_rings2', MarkerArray, queue_size=1000)
 
 
         self.averages = []
@@ -406,6 +406,11 @@ class The_Ring:
             b = np.sum( orig_rgb[ where[0],where[1],0 ] ) / len(where[1]) / 255
             g = np.sum( orig_rgb[ where[0],where[1],1 ] ) / len(where[1]) / 255
             r = np.sum( orig_rgb[ where[0],where[1],2 ] ) / len(where[1]) / 255
+
+            if not ( abs(r-g) > 0.3 or abs(g-b) > 0.3 ) and r > 0.3:
+                rospy.loginfo("gray???")
+                print(r,g,b)
+                return
 
             # d_image = self.bridge.imgmsg_to_cv2(depth_image, "16UC1")
             # cv2.imshow("Ring {}".format(i), depth_image[x_min:x_max,y_min:y_max])

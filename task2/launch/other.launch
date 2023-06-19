@@ -3,9 +3,9 @@
   <node name="goals" pkg="task2" type="goals.py" output="screen"/>
   <!-- <include file="$(find exercise6)/launch/find_cylinder.launch"/> -->
   <node name="detect_rings" pkg="exercise6" type="detect_rings" output="screen"/>
-  <node name="detect_parking" pkg="exercise6" type="detect_parking"/>
+  <node name="detect_parking" pkg="exercise6" type="detect_parking" output="screen"/>
   <node name="recognizer" pkg="task2" type="recognizer.py" output="screen"/>
-  <node name="face_localizer" pkg="task2" type="face_localizer"/>
+  <node name="face_localizer" pkg="task2" type="face_localizer" output="screen"/>
   <node name="soundplay_node" pkg="sound_play" type="soundplay_node.py"/>
 
 </launch>

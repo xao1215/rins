@@ -25,7 +25,9 @@ marker_array = None
 markers_pub = None
 id = 0
 recognized = None
-
+poster_num = 0
+hint = False
+parking = None
 
 cylinder_pd = dict()   # R G B Y
 ring_pd = dict()  # R G B L
@@ -71,6 +73,18 @@ def get_num(msg):
     global num
     # num = msg.data
 
+def get_posters(msg):
+    global poster_num
+    poster_num = msg.data
+    rospy.loginfo(poster_num)
+    rospy.loginfo(f"posters={poster_num}")
+
+def get_parking(msg):
+    global parking
+    parking = msg.data
+    rospy.loginfo(f"got parking={parking}")
+
+
 def get_recog(msg):
     global recognized
     # recognized = msg.data.strip()
@@ -110,11 +124,10 @@ def get_cylinder_num(msg):
     #calc cylinder parking spot and orientation
     k = np.array([ ( p.position.x - pp.position.x ), ( p.position.y - pp.position.y )   ]) 
     k /= np.linalg.norm(np.array([  ( p.position.x - pp.position.x ), ( p.position.y - pp.position.y )  ]))
-    k *= 0.6
+    k *= 0.48
 
     # ang = np.arctan2( k[1] , k[0] ) * 180 / np.pi - 180
     ang = np.arctan2( k[1] , k[0] ) 
-    rospy.loginfo(ang)
     x,y,z,w = quaternion_from_euler(0,0,ang+np.pi)
 
     pous = Pose()
@@ -138,7 +151,7 @@ def get_cylinder_num(msg):
     marker.action = Marker.ADD
     marker.frame_locked = False
     marker.id = id
-    marker.scale = Vector3(0.3, 0.09, 0.1)
+    marker.scale = Vector3(0.2, 0.04, 0.4)
     marker.color = ColorRGBA(0.15, 0.15, 0.3, 1)
     marker_array.markers.append(marker)
     markers_pub.publish(marker_array)
@@ -146,17 +159,17 @@ def get_cylinder_num(msg):
     rospy.loginfo(c)
 
     #get parking loc for cyl
-    if c.g > 0.75 and c.r < 0.65 and c.b < 0.65: #green
+    if c.g > 0.7 and c.r < 0.65 and c.b < 0.65: #green
         cylinder_pd["G"] = pous
-    elif c.r > 0.75 and c.g < 0.65 and c.b < 0.65: #red
+    elif c.r > 0.7 and c.g < 0.65 and c.b < 0.65: #red
         cylinder_pd["R"] = pous
-    elif c.g > 0.75 and c.r > 0.75: # yellow
+    elif c.g > 0.75 and c.r > 0.75 and c.b < 0.65: # yellow
         cylinder_pd["Y"] = pous
     else:
         cylinder_pd["B"] = pous
 
 def start_service():
-    global goal,face_detected,goal_sent,num,ring_num,prison_pos,cylinder_num,ring_pd,cylinder_pd,marker_array,markers_pub,id,recognized
+    global parking,hint,goal,face_detected,goal_sent,num,ring_num,prison_pos,cylinder_num,ring_pd,cylinder_pd,marker_array,markers_pub,id,recognized,poster_num
     face_detected = False
     goal_sent = False
     num = 0
@@ -172,7 +185,7 @@ def start_service():
     goal_subscriber = rospy.Subscriber('/face_position', Pose, update_goal, callback_args=tf2_buffer)
     face_num = rospy.Subscriber('/face_num', Int64, get_num)
     ring_num = rospy.Subscriber('/detected_rings', MarkerArray, get_ring_num)
-    cylinder_num = rospy.Subscriber('/detected_cylinders', MarkerArray, get_cylinder_num)
+    cylinder_sub = rospy.Subscriber('/detected_cylinders', MarkerArray, get_cylinder_num)
     arm_pub = rospy.Publisher("/arm_command", String, queue_size=100)
     soundhandle = SoundClient()
     rospy.sleep(1)
@@ -184,27 +197,31 @@ def start_service():
     recognizer_sub = rospy.Subscriber('recognized', Float32MultiArray, get_recog, queue_size=100)
     arm_pub.publish( 'retract' )
     twist_pub = rospy.Publisher("/cmd_vel_mux/input/navi",Twist, queue_size=50)
+    posters = rospy.Subscriber('/posters', Int64, get_posters, queue_size=10)
+    park_sub = rospy.Subscriber('/park', String, get_parking, queue_size=1000)
+    goal_pub = rospy.Publisher("/goal",String, queue_size=50)
 
 
-    # try:
-    #     odometry = rospy.Subscriber ('/odom', Odometry)
-    # except Exception as e:
-    #     print(e)
 
-
-    # BLACK RING FROM TOP SIDE GOOD
-
-    xs = [  0.2,   0,    3.6, 1.55,  1.7, -1,   -0.75, ]
-    ys = [  -0.22, 0.9, -0.52, 2.3, -1.25, 1.65, 0.2, ]
+    xs = [  0.145,  -0.075,   3.425,  1.8,   1.1,     2.3,   1.15,   -0.7 ]
+    ys = [  -0.975,  0.8425,    -0.475, 2.65,  0.07,  0.975, -1.15, 1.65  ]     
     goals = [ i for i in range( len(xs) ) ]
     for i in range( len(goals) ):
         goals[i] = MoveBaseGoal()
         goals[i].target_pose.header.frame_id = "map";
         goals[i].target_pose.header.stamp = rospy.Time.now()
-        if i == 0:
+        if i == 10:
             q = quaternion_from_euler(0, 0, -1.2)
-        elif i == 1 or i == 5:
-            q = quaternion_from_euler(0, 0, -2)
+        elif  i == 5:
+            q = quaternion_from_euler(0, 0, -2.6)
+        elif i == 4 or i == 0:
+            q = quaternion_from_euler(0, 0, 0.8)
+        elif i == 1  or i == 7 or i == 6:
+            q = quaternion_from_euler(0, 0, -2.4)
+        elif i == 2 :
+            q = quaternion_from_euler(0, 0, 1.5)
+        elif i == 3:
+            q = quaternion_from_euler(0, 0, -2.8)
         else:
             q = quaternion_from_euler(0, 0, 0)
         goals[i].target_pose.pose.orientation.x = q[0]
@@ -213,8 +230,6 @@ def start_service():
         goals[i].target_pose.pose.orientation.w = q[3]
         goals[i].target_pose.pose.position.x = xs[i]
         goals[i].target_pose.pose.position.y = ys[i]
-
-
 
 
     client.send_goal(goals[0])
@@ -227,16 +242,29 @@ def start_service():
     goto_cyl = False
     cyl_reached = False
 
+    cyls = []
+    cyl_i = 0
 
+    def get_colors(string):
+        find = ["red","green","blue","yellow"]
+        clrs = ["R","G","B","Y"]
+        for substring in string.replace(","," ").split():
+            if substring in find:
+                rospy.loginfo(substring)
+                cyls.append( clrs[ find.index(substring) ] )
+                hint = True
+        return hint
+    
     while not rospy.is_shutdown():
         
         id = id + 1
-
         state = client.get_state()
-        print(client.get_goal_status_text())
+        # print(client.get_goal_status_text())
+        # print(which)
 
-        if cylinder_num == 5 and not goto_cyl:
-            prison_pos = cylinder_pd["G"]
+
+        if cylinder_num == 4 and not goto_cyl and poster_num == 3 and len(cyls) == 2:
+            prison_pos = cylinder_pd[ cyls[cyl_i] ]
             goal = MoveBaseGoal()
             goal.target_pose.header.frame_id = "map"
             goal.target_pose.header.stamp = rospy.Time.now()
@@ -247,9 +275,12 @@ def start_service():
             goal.target_pose.pose.orientation.z = prison_pos.orientation.z
             goal.target_pose.pose.orientation.w = prison_pos.orientation.w
             client.send_goal(goal)
+            r.sleep()
             arm_pub.publish( 'cyl' )
             rospy.loginfo("PUBLISHING CYL")
-            goto_cyl = True
+            goto_cyl = True 
+            r.sleep()
+            continue
         if goto_cyl and not cyl_reached:
             if state == 3:
                 cyl_reached = True
@@ -257,7 +288,7 @@ def start_service():
                 r.sleep()
                 continue
         if goto_cyl and cyl_reached:
-            if recognized == None or recognized == [] or recognized == () or recognized == "" :
+            if (recognized == None or recognized == [] or recognized == () or recognized == "") and state == 3 :
                 # rospy.loginfo("moving")
                 twist = Twist()
                 twist.linear.x = 0.029
@@ -268,21 +299,38 @@ def start_service():
                 twist.angular.z = 0
                 twist_pub.publish(twist)
             else:
+                rospy.loginfo(cyl_i)
+                rospy.loginfo(goto_cyl)
+                rospy.loginfo(cyl_reached)
                 rospy.loginfo("RECOGNIZED A FACE")
-                goto_cyl = False
-                cyl_reached = False
-                arm_pub.publish( 'retract' )
-                break
+                if recognized[0] < 0.5:
+                    rospy.loginfo("NOT THE RIGHT ONE")
+                    cyl_i += 1
+                    goto_cyl = False
+                    cyl_reached = False
+                    arm_pub.publish( 'retract' )
+                    recognized = None
+                    # continue
+                else:
+                    rospy.loginfo("RIGHT ONE")
+                    arm_pub.publish( 'retract' )
+                    goto_cyl = False
+                    cyl_reached = False
+                    recognized = None
+                    #temporary
+                    cylinder_num = 5
+                    ring_num = 5
+                    # continue
             r.sleep()
             continue
 
 
 
 
-        if ring_num == 4 and cylinder_num == 4:
+        if ring_num == 5 and cylinder_num == 5:
             goto_prison = True
         if goto_prison and not prison_sent:
-            prison_pos = ring_pd["B"]
+            prison_pos = ring_pd[ parking ]
             goal = MoveBaseGoal()
             goal.target_pose.header.frame_id = "map"
             goal.target_pose.header.stamp = rospy.Time.now()
@@ -294,6 +342,8 @@ def start_service():
             goal.target_pose.pose.orientation.w = prison_pos.orientation.w
             client.send_goal(goal)
             prison_sent = True
+            r.sleep()
+            continue
         if goto_prison and prison_sent and not park:
             if state == 3:
                 park = True
@@ -325,12 +375,23 @@ def start_service():
             if face_detected:
                 soundhandle.say("GREETINGS", voice, volume)
                 print("FACE DETECTION GOAL REACHED")
-                # global num
+
+                if len(cyls) != 2:
+                    goal_pub.publish( "question" )
+                    try:
+                        msg = rospy.wait_for_message('/input', String, timeout=15)
+                        print(msg.data)
+                        if get_colors(msg.data):
+                            goal_pub.publish( "end" )
+                    except Exception as e:
+                        rospy.loginfo("no hint")
+
                 num += 1
                 rotation = 0
                 # which += 1
-                # rospy.sleep(2)
-                if num == 8:
+                print(num)
+                rospy.sleep(2)
+                if num == 11:
                     print("FOUND ALL")
                     break
                 client.send_goal(goals[which])

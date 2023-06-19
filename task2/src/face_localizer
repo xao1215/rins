@@ -8,19 +8,31 @@ import numpy as np
 import tf2_geometry_msgs
 import tf2_ros
 import math
+from imutils.object_detection import non_max_suppression
+import argparse
+
 #import matplotlib.pyplot as plt
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PointStamped, Vector3, Pose, PoseArray
+from geometry_msgs.msg import PointStamped, Vector3, Pose, PoseArray, Twist
 from cv_bridge import CvBridge, CvBridgeError
 from visualization_msgs.msg import Marker, MarkerArray
-from std_msgs.msg import ColorRGBA,Int64
+from std_msgs.msg import ColorRGBA,Int64, Float32MultiArray, String
 from nav_msgs.msg import Odometry
 from sound_play.msg import SoundRequest
 from sound_play.libsoundplay import SoundClient
 from os.path import dirname, join
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 import random
+import face_recognition
+import pytesseract
 
+class poster:
+    def __init__(self, award, color, encoding):
+        self.reward = award
+        self.color  = color
+        self.encoding = encoding
+    def __str__(self):
+        return f"rew={self.reward}, col={self.color}, enc={self.encoding[:3]}"
 
 class face_localizer:
 
@@ -36,6 +48,7 @@ class face_localizer:
         modelPath = join(dirname(__file__), "res10_300x300_ssd_iter_140000.caffemodel")
 
         self.face_net = cv2.dnn.readNetFromCaffe(protoPath, modelPath)
+        self.net = cv2.dnn.readNet(join(dirname(__file__), "frozen_east_text_detection.pb"))
 
         # A help variable for holding the dimensions of the image
         self.dims = (0, 0, 0)
@@ -52,6 +65,9 @@ class face_localizer:
 
         self.temp = False
 
+        self.poster = False
+        self.posters = []
+
         # Subscribe to the image and/or depth topic
         # self.image_sub = rospy.Subscriber("/camera/rgb/image_raw", Image, self.image_callback)
         # self.depth_sub = rospy.Subscriber("/camera/depth/image_raw", Image, self.depth_callback)
@@ -60,6 +76,14 @@ class face_localizer:
         self.markers_pub = rospy.Publisher('face_markers', MarkerArray, queue_size=1000)
         self.position_pub = rospy.Publisher('face_position', Pose, queue_size=1000)
         self.finish_service = rospy.Publisher("face_num", Int64, queue_size=100 )
+        self.twist_pub = rospy.Publisher("/cmd_vel_mux/input/navi",Twist, queue_size=50)
+        self.posters_pub = rospy.Publisher("/posters",Int64, queue_size=50)
+        self.reward_pub = rospy.Publisher('/reward', Float32MultiArray, queue_size=1000)
+        self.park_pub = rospy.Publisher('/park', String, queue_size=1000)
+
+
+
+
 
         self.poses_array = []
 
@@ -73,6 +97,8 @@ class face_localizer:
 
     def get_num(req, self):
         return self.marker_num
+    
+        
 
     def get_pose(self,coords,dist,stamp, depth_arr):
         # Calculate the position of the detected face
@@ -180,6 +206,78 @@ class face_localizer:
     def publish_num(self):
         self.finish_service.publish(self.marker_num-1)
 
+
+    def text_detect(self,image):
+        print("new imge")
+        orig = image
+        H, W = image.shape[0], image.shape[1]
+
+        newW, newH = 320, 320 
+
+        rW = W / float(newW)
+        rH = H / float(newH)
+
+        image = cv2.resize(image, (newW, newH))
+        H, W = image.shape[0], image.shape[1]
+
+        layerNames = [
+            "feature_fusion/Conv_7/Sigmoid",
+            "feature_fusion/concat_3"
+        ]
+
+        blob = cv2.dnn.blobFromImage(image, 1.0, (W, H), (128.68, 116.78, 103.94), swapRB=True, crop=False)
+
+        self.net.setInput(blob)
+        (scores, geometry) = self.net.forward(layerNames)
+        (numRows, numCols) = scores.shape[2:4]
+        rects = []
+        confidences = []
+        # print((scores[0, 0, y]))
+
+        low = 0
+        high = 0
+        for y in range(0, numRows):
+            scoresData = scores[0, 0, y]
+            xData0 = geometry[0, 0, y]
+            xData1 = geometry[0, 1, y]
+            xData2 = geometry[0, 2, y]
+            xData3 = geometry[0, 3, y]
+            anglesData = geometry[0, 4, y]
+
+            for x in range(0, numCols):
+                if scoresData[x] < 0.8:
+                    low += 1
+                    continue
+                else:
+                    high += 1
+
+                # (offsetX, offsetY) = (x * 4.0, y * 4.0)
+                # angle = anglesData[x]
+                # cos = np.cos(angle)
+                # sin = np.sin(angle)
+                # h = xData0[x] + xData2[x]
+                # w = xData1[x] + xData3[x]
+                # endX = int(offsetX + (cos * xData1[x]) + (sin * xData2[x]))
+                # endY = int(offsetY - (sin * xData1[x]) + (cos * xData2[x]))
+                # startX = int(endX - w)
+                # startY = int(endY - h)
+                # rects.append((startX, startY, endX, endY))
+                confidences.append(scoresData[x])
+        print(confidences)
+        print(low,high)
+        print(scores.shape[2:4])
+
+        # boxes = non_max_suppression(np.array(rects), probs=confidences)
+        # for (startX, startY, endX, endY) in boxes:
+        #     startX = int(startX * rW)
+        #     startY = int(startY * rH)
+        #     endX = int(endX * rW)
+        #     endY = int(endY * rH)
+        #     cv2.rectangle(orig, (startX, startY), (endX, endY), (0, 255, 0), 2)
+
+        # cv2.imshow("Text Detection", orig)
+        # cv2.waitKey(1)
+
     def find_faces(self):
         # print('I got a new image!')
 
@@ -220,6 +318,8 @@ class face_localizer:
 
         # Detect the faces in the image
         # face_rectangles = self.face_detector(rgb_image, 0)
+        self.text_detect(rgb_image)
+
 
         blob = cv2.dnn.blobFromImage(cv2.resize(rgb_image, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0))
         self.face_net.setInput(blob)
@@ -230,6 +330,8 @@ class face_localizer:
 
 
         for i in range(0, face_detections.shape[2]):
+            if i == 1:
+                return;
             confidence = face_detections[0, 0, i, 2]
             if confidence>0.5:
                 box = face_detections[0,0,i,3:7] * np.array([w,h,w,h])
@@ -239,8 +341,6 @@ class face_localizer:
                 # Extract region containing face
                 face_region = rgb_image[y1:y2, x1:x2]
 
-                # Visualize the extracted face
-                
 
                 # Find the distance to the detected face
                 face_distance = float(np.nanmean(depth_image[y1:y2,x1:x2]))
@@ -256,31 +356,33 @@ class face_localizer:
                 pose = self.get_pose((x1,x2,y1,y2), face_distance, depth_time, depth_arr )
 
                 if pose is not None:
-
+                    
                     for face in self.poses_array:
                         if  math.sqrt( (face.position.x - pose.position.x)**2 +  (face.position.y - pose.position.y)**2 ) < 0.55:
 
                         # if  abs(face.position.x - pose.position.x) < 0.4 and abs(face.position.y - pose.position.y) < 0.5:
-                            marker = Marker()
-                            marker.header.stamp = rospy.Time(0)
-                            marker.header.frame_id = 'map'
-                            marker.pose = pose
-                            marker.type = Marker.SPHERE
-                            marker.action = Marker.ADD
-                            marker.frame_locked = False
-                            marker.lifetime = rospy.Duration.from_sec(2)
-                            marker.id =  self.marker_all
-                            self.marker_all += 1
-                            marker.scale = Vector3(0.1, 0.1, 0.1)
-                            marker.color = ColorRGBA(1, 1, 0, 1)
-                            self.marker_array.markers.append(marker)
-                            self.markers_pub.publish(self.marker_array)
+                            # marker = Marker()
+                            # marker.header.stamp = rospy.Time(0)
+                            # marker.header.frame_id = 'map'
+                            # marker.pose = pose
+                            # marker.type = Marker.SPHERE
+                            # marker.action = Marker.ADD
+                            # marker.frame_locked = False
+                            # marker.lifetime = rospy.Duration.from_sec(2)
+                            # marker.id =  self.marker_all
+                            # self.marker_all += 1
+                            # marker.scale = Vector3(0.1, 0.1, 0.1)
+                            # marker.color = ColorRGBA(1, 1, 0, 1)
+                            # self.marker_array.markers.append(marker)
+                            # self.markers_pub.publish(self.marker_array)
+                            
 
                             self.existing_face = True
                         else:
-                            print("new")
+                            # print("new")
+                            afk = 3
                             # print("new\ndistance:", math.sqrt( (face.position.x - pose.position.x)**2 +  (face.position.y - pose.position.y)**2 ) )
-
+                    # print(x2-x1,y2-y1)
 
                     if not self.existing_face:
                         if self.marker_counter == 0:
@@ -288,7 +390,7 @@ class face_localizer:
                             self.position_pub.publish(pose)
                         self.marker_counter += 1
 
-
+                    
                     if self.marker_counter == 1:
                         if not self.existing_face:
                             # Create a marker used for visualization
@@ -306,13 +408,90 @@ class face_localizer:
                             marker.color = ColorRGBA(0, 1, 0, 1)
                             self.marker_array.markers.append(marker)
                             self.poses_array.append(pose)
-
-
                             self.markers_pub.publish(self.marker_array)
-                        self.marker_counter = 0
-                    self.existing_face = False
+                        # self.marker_counter = 0
+
+                    if self.existing_face:
+                        self.marker_counter += 1
+                        
+
+                    rospy.loginfo(self.existing_face)
+                    color = ""
+                    reward = 0
+                    if self.existing_face and self.marker_counter > 2 and not self.poster:
+                        # return
+                        l = x1-100 if x1-100 >= 0 else 0
+                        r = x2+100 if x2+100 < rgb_image.shape[1] else rgb_image.shape[1] 
+                        # print(rgb_image.shape[1],x2+50)
+
+                        gray = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2GRAY)[y2:-150,l:r]
+                        # thresh = cv2.threshold(gray, 100, 0, cv2.THRESH_BINARY)[1]
+
+                        # cv2.imshow("Depth window", gray)
+                        # cv2.waitKey(1)
+
+                        try:
+                            text = pytesseract.image_to_string(gray).replace("\n", "").replace(".", "").replace(" ", "").lower().split('1', 1)[1]
+                        except Exception as e:
+                            self.existing_face = False
+                            return
+                        
+                        # rospy.loginfo(text)
+                        rospy.loginfo(text)
+                        # print(len(text))
+
+                        if len(text) < 4:
+                            self.existing_face = False
+                            return
+
+
+                        if any([x in text for x in ["green","gren","gree","gr"]]):
+                            color = "G"
+                        elif any([x in text for x in ["blue","blu","bl"]]):
+                            color = "B"
+                        elif any([x in text for x in ["red","re"]]):
+                            color = "R"
+
+                        reward = len(text[:text.rindex('0') + 1])
+
+                        if reward >= 3 and len(color) == 1:
+                            for p in self.posters:
+                                if p.reward == reward or color == p.color:
+                                    self.existing_face = False
+                                    return
+                                     
+                            face = face_recognition.face_locations(rgb_image)
+                            vec = face_recognition.face_encodings(rgb_image, [(y1,x2,y2,x1)])
+                            self.poster = True
+                            pstr = poster(reward,color,list(vec[0]))
+                            self.posters.append(pstr)
+                            for p in self.posters:
+                                rospy.loginfo(p.__str__())
+                            self.posters_pub.publish(len(self.posters))
+
+                            # if all found
+                            if len(self.posters) == 3:
+                                best = 0
+                                which = 0
+                                for i,x in enumerate(self.posters):
+                                    if x.reward > best:
+                                        which = i
+                                        best = x.reward
+                                print( self.posters[which].encoding )
+                                self.reward_pub.publish( Float32MultiArray( data = self.posters[which].encoding ) )
+                                self.park_pub.publish( self.posters[which].color )
+                                
+
+                        
+                        self.existing_face = False
+
+                    
+                    # self.existing_face = False
             else:
+                # rospy.loginfo("reset")
                 self.marker_counter = 0
+                self.poster = False
+                self.existing_face = False
                     
                     
                         
@@ -344,7 +523,7 @@ def main():
         face_finder = face_localizer()
 
         rate = rospy.Rate(1.5)
-        rospy.sleep(5.)
+        # rospy.sleep(5.)
         while not rospy.is_shutdown():
             face_finder.publish_num()
             face_finder.find_faces()
