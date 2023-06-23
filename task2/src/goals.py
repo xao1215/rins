@@ -28,6 +28,8 @@ recognized = None
 poster_num = 0
 hint = False
 parking = None
+isposter = False
+cyls = None
 
 cylinder_pd = dict()   # R G B Y
 ring_pd = dict()  # R G B L
@@ -57,17 +59,26 @@ def generate_goal(rotation, x, y):
     return goal
 
 def update_goal(face_pose, tf2_buffer):
-    global goal, face_detected, goal_sent
+    global goal, face_detected, goal_sent, isposter, cyls
 
-    goal.target_pose.pose.position.x = face_pose.position.x
-    goal.target_pose.pose.position.y = face_pose.position.y
-    goal.target_pose.pose.orientation.x = face_pose.orientation.x
-    goal.target_pose.pose.orientation.y = face_pose.orientation.y
-    goal.target_pose.pose.orientation.z = face_pose.orientation.z
-    goal.target_pose.pose.orientation.w = face_pose.orientation.w
+    if face_pose.position.z > 0.5:
+        isposter = True
+    else:
+        isposter = False
+    print("got new pose, poster:" , isposter)
 
-    face_detected = True
-    goal_sent = False
+    if len(cyls) != 2 or face_pose.position.z > 0.5:
+
+        goal.target_pose.pose.position.x = face_pose.position.x
+        goal.target_pose.pose.position.y = face_pose.position.y
+        goal.target_pose.pose.orientation.x = face_pose.orientation.x
+        goal.target_pose.pose.orientation.y = face_pose.orientation.y
+        goal.target_pose.pose.orientation.z = face_pose.orientation.z
+        goal.target_pose.pose.orientation.w = face_pose.orientation.w
+        face_detected = True
+        goal_sent = False
+
+
 
 def get_num(msg):
     global num
@@ -163,13 +174,13 @@ def get_cylinder_num(msg):
         cylinder_pd["G"] = pous
     elif c.r > 0.7 and c.g < 0.65 and c.b < 0.65: #red
         cylinder_pd["R"] = pous
-    elif c.g > 0.75 and c.r > 0.75 and c.b < 0.65: # yellow
-        cylinder_pd["Y"] = pous
-    else:
+    elif c.g > 0.7 and c.b > 0.7 : # blue
         cylinder_pd["B"] = pous
+    else:
+        cylinder_pd["Y"] = pous
 
 def start_service():
-    global parking,hint,goal,face_detected,goal_sent,num,ring_num,prison_pos,cylinder_num,ring_pd,cylinder_pd,marker_array,markers_pub,id,recognized,poster_num
+    global cyls,isposter,parking,hint,goal,face_detected,goal_sent,num,ring_num,prison_pos,cylinder_num,ring_pd,cylinder_pd,marker_array,markers_pub,id,recognized,poster_num
     face_detected = False
     goal_sent = False
     num = 0
@@ -203,25 +214,27 @@ def start_service():
 
 
 
-    xs = [  0.145,  -0.075,   3.425,  1.8,   1.1,     2.3,   1.15,   -0.7 ]
-    ys = [  -0.975,  0.8425,    -0.475, 2.65,  0.07,  0.975, -1.15, 1.65  ]     
+    xs = [  0.145,  -0.075,   3.4,      2,   1.2,    1.555,    1.15,   -0.6 ]
+    ys = [  -0.975,  0.8425,   -0.46,  1.1,  0.425,  2.55 ,  -1.15,   1.5  ]     
     goals = [ i for i in range( len(xs) ) ]
     for i in range( len(goals) ):
         goals[i] = MoveBaseGoal()
         goals[i].target_pose.header.frame_id = "map";
         goals[i].target_pose.header.stamp = rospy.Time.now()
-        if i == 10:
-            q = quaternion_from_euler(0, 0, -1.2)
-        elif  i == 5:
-            q = quaternion_from_euler(0, 0, -2.6)
-        elif i == 4 or i == 0:
+        if i == 3:
+            q = quaternion_from_euler(0, 0, -0.4)
+        elif i == 0:
+            q = quaternion_from_euler(0, 0, 1)
+        elif i == 5 or i == 7:
+            q = quaternion_from_euler(0, 0, -2.8)
+        elif i == 0:
             q = quaternion_from_euler(0, 0, 0.8)
-        elif i == 1  or i == 7 or i == 6:
+        elif i == 1  or i == 6 :
             q = quaternion_from_euler(0, 0, -2.4)
         elif i == 2 :
             q = quaternion_from_euler(0, 0, 1.5)
-        elif i == 3:
-            q = quaternion_from_euler(0, 0, -2.8)
+        elif i == 4:
+            q = quaternion_from_euler(0, 0, 1.6)
         else:
             q = quaternion_from_euler(0, 0, 0)
         goals[i].target_pose.pose.orientation.x = q[0]
@@ -275,11 +288,11 @@ def start_service():
             goal.target_pose.pose.orientation.z = prison_pos.orientation.z
             goal.target_pose.pose.orientation.w = prison_pos.orientation.w
             client.send_goal(goal)
+            # r.sleep()
+            goto_cyl = True 
             r.sleep()
             arm_pub.publish( 'cyl' )
             rospy.loginfo("PUBLISHING CYL")
-            goto_cyl = True 
-            r.sleep()
             continue
         if goto_cyl and not cyl_reached:
             if state == 3:
@@ -291,7 +304,7 @@ def start_service():
             if (recognized == None or recognized == [] or recognized == () or recognized == "") and state == 3 :
                 # rospy.loginfo("moving")
                 twist = Twist()
-                twist.linear.x = 0.029
+                twist.linear.x = 0.028
                 twist.linear.y = 0
                 twist.linear.z = 0
                 twist.angular.x = 0
@@ -353,7 +366,7 @@ def start_service():
                 continue
         if park:
             r.sleep()
-            print("parking phase")
+            # print("parking phase")
             continue
 
 
@@ -373,24 +386,27 @@ def start_service():
 
         if state == 3:
             if face_detected:
-                soundhandle.say("GREETINGS", voice, volume)
                 print("FACE DETECTION GOAL REACHED")
-
-                if len(cyls) != 2:
-                    goal_pub.publish( "question" )
-                    try:
-                        msg = rospy.wait_for_message('/input', String, timeout=15)
-                        print(msg.data)
-                        if get_colors(msg.data):
-                            goal_pub.publish( "end" )
-                    except Exception as e:
-                        rospy.loginfo("no hint")
-
+                print("FD GOAL REACHED, POSTER:",isposter)
+                if not isposter:
+                    # soundhandle.say("GREETINGS", voice, volume)
+                    if len(cyls) != 2:
+                        goal_pub.publish( "question" )
+                        try:
+                            msg = rospy.wait_for_message('/input', String, timeout=30)
+                            print(msg.data)
+                            if get_colors(msg.data):
+                                goal_pub.publish( "end" )
+                        except Exception as e:
+                            rospy.loginfo("no hint")
+                else:
+                    rospy.sleep(2.5)
+                    
                 num += 1
                 rotation = 0
                 # which += 1
                 print(num)
-                rospy.sleep(2)
+                # rospy.sleep(2)
                 if num == 11:
                     print("FOUND ALL")
                     break

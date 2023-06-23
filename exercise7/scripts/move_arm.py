@@ -32,8 +32,10 @@ class Arm_Mover():
         self.right.joint_names = ["arm_shoulder_pan_joint", "arm_shoulder_lift_joint", "arm_elbow_flex_joint", "arm_wrist_flex_joint"]
         self.right.points = [JointTrajectoryPoint(positions=[-1.57,0.3,1,0],
                                                     time_from_start = rospy.Duration(1))]
-        
-
+        self.left = JointTrajectory()
+        self.left.joint_names = ["arm_shoulder_pan_joint", "arm_shoulder_lift_joint", "arm_elbow_flex_joint", "arm_wrist_flex_joint"]
+        self.left.points = [JointTrajectoryPoint(positions=[1.57,0.3,1,0],
+                                                    time_from_start = rospy.Duration(1))]
         self.cyl = JointTrajectory()
         self.cyl.joint_names = ["arm_shoulder_pan_joint", "arm_shoulder_lift_joint", "arm_elbow_flex_joint", "arm_wrist_flex_joint"]
         self.cyl.points = [JointTrajectoryPoint(positions=[0,0.3,1,-0.3],
@@ -54,6 +56,9 @@ class Arm_Mover():
                 print('Extended arm!')
             elif self.user_command == 'right':
                 self.arm_movement_pub.publish(self.right)
+                print('Right-ed arm!')
+            elif self.user_command == 'left':
+                self.arm_movement_pub.publish(self.left)
                 print('Right-ed arm!')
             elif self.user_command == 'cyl':
                 self.arm_movement_pub.publish(self.cyl)

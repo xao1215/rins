@@ -46,6 +46,7 @@ class The_Ring:
 
 
         self.arm_sub = rospy.Subscriber("/arm_command", String, doshit)
+        self.arm_pub = rospy.Publisher("/arm_command", String, queue_size=100)
 
       
         # self.new_depth_sub = Subscriber("/arm_camera/depth/image_raw", Image)
@@ -213,6 +214,9 @@ class The_Ring:
             twist.linear.x = 0.07
             if not np.any(gray[int(gray.shape[0]/2):gray.shape[0]-115,:]==0):
                 print("DONE")
+                self.arm_pub.publish( 'left' )
+                rospy.sleep(1)
+                self.arm_pub.publish( 'right' )
                 self.center = False
 
 
