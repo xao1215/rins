@@ -212,11 +212,15 @@ class The_Ring:
         elif not self.rotate and self.center:
             g = gray[:gray.shape[0]-50,:]
             twist.linear.x = 0.07
-            if not np.any(gray[int(gray.shape[0]/2):gray.shape[0]-115,:]==0):
+            if not np.any(gray[int(gray.shape[0]-120):gray.shape[0]-115,:]==0):
                 print("DONE")
                 self.arm_pub.publish( 'left' )
-                rospy.sleep(1)
+                rospy.sleep(0.6)
                 self.arm_pub.publish( 'right' )
+                rospy.sleep(0.8)
+                self.arm_pub.publish( 'left' )
+                rospy.sleep(0.8)
+                self.arm_pub.publish( 'retract' )
                 self.center = False
 
 

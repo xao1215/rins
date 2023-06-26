@@ -120,7 +120,7 @@ class face_localizer:
                 twist.linear.z = 0
                 twist.angular.x = 0
                 twist.angular.y = 0
-                twist.angular.z = 0.425
+                twist.angular.z = 0.395
                 self.twist_pub.publish(twist)
             elif sumr > 0 and suml == 0:
                 print("MOVER")
@@ -130,7 +130,7 @@ class face_localizer:
                 twist.linear.z = 0
                 twist.angular.x = 0
                 twist.angular.y = 0
-                twist.angular.z = -0.425
+                twist.angular.z = -0.395
                 self.twist_pub.publish(twist)
 
 
@@ -171,17 +171,25 @@ class face_localizer:
                 # face = face_recognition.face_locations(rgb_image)
 
                 vec = face_recognition.face_encodings(rgb_image, [(y1,x2,y2,x1)])
-                pubi = Float32MultiArray(data=vec[0])
-                self.recognizer_pub.publish( pubi )
+                # pubi = Float32MultiArray(data=vec[0])
+                # self.recognizer_pub.publish( pubi )
+
+                dists = face_recognition.face_distance(self.rewards, vec[0])
+                print(dists)
+                count = np.count_nonzero(dists > 5)
+                most = np.inf
 
                 if len(vec) > 0:
                 
                     for i in range(len(self.rewards)):
-                        print(face_recognition.compare_faces([self.rewards[i]], vec[0]))
-                        if face_recognition.compare_faces([self.rewards[i]], vec[0])[0]:
+                        compar = face_recognition.compare_faces([self.rewards[i]], vec[0])
+                        print(compar)
+                        if compar[0] and i == np.argmin(dists):
+                        # if compar[0]:
                             self.recognizer_pub.publish( Float32MultiArray(data=[1.0]) )
                             self.park_pub.publish( self.poster_colors[i] )
                             self.delay = 2
+                            rospy.sleep(1.5)
                             return
 
                     self.recognizer_pub.publish( Float32MultiArray(data=[0.0]) )

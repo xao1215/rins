@@ -12,7 +12,7 @@ from sound_play.msg import SoundRequest
 from sound_play.libsoundplay import SoundClient
 import tf2_ros
 import numpy as np
-
+import colorsys
 
 goal = None
 face_deteced = None
@@ -67,7 +67,7 @@ def update_goal(face_pose, tf2_buffer):
         isposter = False
     print("got new pose, poster:" , isposter)
 
-    if len(cyls) != 2 or face_pose.position.z > 0.5:
+    if len(cyls) == 0 or face_pose.position.z > 0.5:
 
         goal.target_pose.pose.position.x = face_pose.position.x
         goal.target_pose.pose.position.y = face_pose.position.y
@@ -100,7 +100,7 @@ def get_recog(msg):
     global recognized
     # recognized = msg.data.strip()
     recognized = msg.data
-    rospy.loginfo(recognized)
+    # rospy.loginfo(recognized)
 
 def get_ring_num(msg):
     # print("UPDATING RINGS")
@@ -162,12 +162,14 @@ def get_cylinder_num(msg):
     marker.action = Marker.ADD
     marker.frame_locked = False
     marker.id = id
-    marker.scale = Vector3(0.2, 0.04, 0.4)
-    marker.color = ColorRGBA(0.15, 0.15, 0.3, 1)
+    marker.scale = Vector3(0.25, 0.02, 0.02)
+    marker.color = ColorRGBA(0.1, 0.1, 0.3, 1)
     marker_array.markers.append(marker)
     markers_pub.publish(marker_array)
 
     rospy.loginfo(c)
+    hsv = colorsys.rgb_to_hsv(c.r / 255.0, c.g / 255.0, c.b / 255.0)
+    print(hsv[0]*360)
 
     #get parking loc for cyl
     if c.g > 0.7 and c.r < 0.65 and c.b < 0.65: #green
@@ -213,28 +215,34 @@ def start_service():
     goal_pub = rospy.Publisher("/goal",String, queue_size=50)
 
 
+#    CHKPT
+# CHKWOEF   1.555, 2.3
+    xs = [  0.145,  -0.075,   3.4,     1.3,    1.555, 1.65,    1.15,   -0.6 ]
+    ys = [  -0.975,  0.8425,   -0.46,  0.65,     2.55 , 0.8,  -1.15,   1.55  ]  
 
-    xs = [  0.145,  -0.075,   3.4,      2,   1.2,    1.555,    1.15,   -0.6 ]
-    ys = [  -0.975,  0.8425,   -0.46,  1.1,  0.425,  2.55 ,  -1.15,   1.5  ]     
+    #xs = [  0.145,  -0.075,   3.4,      2,   1.2,    1.555,    1.15,   -0.6 ]
+    #s = [  -0.975,  0.8425,   -0.46,  1.1,  0.425,  2.55 ,  -1.15,   1.5  ]     
     goals = [ i for i in range( len(xs) ) ]
     for i in range( len(goals) ):
         goals[i] = MoveBaseGoal()
         goals[i].target_pose.header.frame_id = "map";
         goals[i].target_pose.header.stamp = rospy.Time.now()
         if i == 3:
-            q = quaternion_from_euler(0, 0, -0.4)
+            q = quaternion_from_euler(0, 0, -1.8) # was 0 befor
         elif i == 0:
-            q = quaternion_from_euler(0, 0, 1)
-        elif i == 5 or i == 7:
+            q = quaternion_from_euler(0, 0, 1.2)
+        elif i == 6:
+            q = quaternion_from_euler(0, 0, 2.9)
+        elif  i == 7 or i == 6 or i == 8:
             q = quaternion_from_euler(0, 0, -2.8)
-        elif i == 0:
-            q = quaternion_from_euler(0, 0, 0.8)
+        elif i == 5:
+            q = quaternion_from_euler(0, 0, 0.3)
         elif i == 1  or i == 6 :
             q = quaternion_from_euler(0, 0, -2.4)
-        elif i == 2 :
+        elif i == 2:
             q = quaternion_from_euler(0, 0, 1.5)
         elif i == 4:
-            q = quaternion_from_euler(0, 0, 1.6)
+            q = quaternion_from_euler(0, 0, -3)
         else:
             q = quaternion_from_euler(0, 0, 0)
         goals[i].target_pose.pose.orientation.x = q[0]
@@ -254,6 +262,9 @@ def start_service():
     goto_prison = False
     goto_cyl = False
     cyl_reached = False
+    prev_poster = 0
+    timeout = 22        
+
 
     cyls = []
     cyl_i = 0
@@ -276,7 +287,7 @@ def start_service():
         # print(which)
 
 
-        if cylinder_num == 4 and not goto_cyl and poster_num == 3 and len(cyls) == 2:
+        if cylinder_num == 4 and not goto_cyl and poster_num >= 3 and len(cyls) >= 1:
             prison_pos = cylinder_pd[ cyls[cyl_i] ]
             goal = MoveBaseGoal()
             goal.target_pose.header.frame_id = "map"
@@ -290,7 +301,7 @@ def start_service():
             client.send_goal(goal)
             # r.sleep()
             goto_cyl = True 
-            r.sleep()
+            rospy.sleep(3)
             arm_pub.publish( 'cyl' )
             rospy.loginfo("PUBLISHING CYL")
             continue
@@ -304,7 +315,7 @@ def start_service():
             if (recognized == None or recognized == [] or recognized == () or recognized == "") and state == 3 :
                 # rospy.loginfo("moving")
                 twist = Twist()
-                twist.linear.x = 0.028
+                twist.linear.x = 0.0279
                 twist.linear.y = 0
                 twist.linear.z = 0
                 twist.angular.x = 0
@@ -315,7 +326,7 @@ def start_service():
                 rospy.loginfo(cyl_i)
                 rospy.loginfo(goto_cyl)
                 rospy.loginfo(cyl_reached)
-                rospy.loginfo("RECOGNIZED A FACE")
+                rospy.loginfo("FOUND A FACE")
                 if recognized[0] < 0.5:
                     rospy.loginfo("NOT THE RIGHT ONE")
                     cyl_i += 1
@@ -393,23 +404,42 @@ def start_service():
                     if len(cyls) != 2:
                         goal_pub.publish( "question" )
                         try:
-                            msg = rospy.wait_for_message('/input', String, timeout=30)
+                            msg = rospy.wait_for_message('/input', String, timeout=5)
                             print(msg.data)
                             if get_colors(msg.data):
                                 goal_pub.publish( "end" )
                         except Exception as e:
                             rospy.loginfo("no hint")
                 else:
-                    rospy.sleep(2.5)
+                    if prev_poster == poster_num:
+                        print("looking for poster, timeout: ",timeout)
+                        twist = Twist()
+                        twist.linear.x = 0
+                        twist.linear.y = 0
+                        twist.linear.z = 0
+                        twist.angular.x = 0
+                        twist.angular.y = 0
+                        twist.angular.z = -0.05 if timeout % 2 == 0 else 0.05
+                        twist_pub.publish(twist)
+                        timeout -= 1
+                        if timeout > 0:
+                            r.sleep()
+                            continue
+                    else:
+                        print("got poster goals")
+                        prev_poster = poster_num
+                    # rospy.sleep(2.5)
                     
+                timeout = 22
                 num += 1
                 rotation = 0
-                # which += 1
+                if which == 6 or which == 2 or which == 5:
+                    which += 1
                 print(num)
                 # rospy.sleep(2)
-                if num == 11:
-                    print("FOUND ALL")
-                    break
+                # if num == 11:
+                    # print("FOUND ALL")
+                    # break
                 client.send_goal(goals[which])
                 face_detected = False
                 goal_sent = False

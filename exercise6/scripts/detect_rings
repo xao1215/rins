@@ -43,9 +43,9 @@ class The_Ring:
 
         # Publiser for the visualization markers
         self.markers_pub = rospy.Publisher('/detected_rings', MarkerArray, queue_size=1000)
+
         # self.marker_array2 = MarkerArray()
         # self.marker_num2 = 1
-
         # self.markers_pub2 = rospy.Publisher('/detected_rings2', MarkerArray, queue_size=1000)
 
 
@@ -218,6 +218,11 @@ class The_Ring:
 
                 self.marker_array.markers[ind+1].pose.position.x += (xx - self.marker_array.markers[ind+1].pose.position.x) / self.averages[i] * w
                 self.marker_array.markers[ind+1].pose.position.y += (yy - self.marker_array.markers[ind+1].pose.position.y) / self.averages[i] * w
+                self.marker_array.markers[ind+1].pose.orientation.x += (p.orientation.x - self.marker_array.markers[ind+1].pose.orientation.x) / self.averages[i] * w
+                self.marker_array.markers[ind+1].pose.orientation.y += (p.orientation.y - self.marker_array.markers[ind+1].pose.orientation.y) / self.averages[i] * w
+                self.marker_array.markers[ind+1].pose.orientation.z += (p.orientation.z - self.marker_array.markers[ind+1].pose.orientation.z) / self.averages[i] * w
+                self.marker_array.markers[ind+1].pose.orientation.w += (p.orientation.w - self.marker_array.markers[ind+1].pose.orientation.w) / self.averages[i] * w
+
                 self.markers_pub.publish(self.marker_array)
 
                 # if color[1] > 0.85:
